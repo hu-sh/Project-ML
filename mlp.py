@@ -53,6 +53,11 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None):
     train_loss_history = []
     val_loss_history = []
 
+
+
+    patience = 20
+    trigger_times = 0
+    best_loss = float('inf')
     for epoch in range(epochs):
         epoch_loss = 0.0
         for X_batch, y_batch in train_loader:
@@ -78,7 +83,18 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None):
                 val_out = model(X_val)
                 v_loss = criterion(val_out, y_val)
                 val_loss_history.append(v_loss.item())
-            model.train() 
+            model.train()
+
+
+            if v_loss < best_loss:
+                best_loss = v_loss
+                trigger_times = 0
+                # Opzionale: salva qui i pesi del modello migliore
+            else:
+                trigger_times += 1
+                if trigger_times >= patience:
+                    # print(f"Early stopping at epoch {epoch}")
+                    break 
         
     return model, train_loss_history, val_loss_history
 
@@ -233,12 +249,12 @@ y_test_t = torch.FloatTensor(y_test).view(-1, 1)
 
 # --- 3. GRIGLIA IPERPARAMETRI ---
 param_grid = {
-    'hidden_layers': [[4], [10], [20], [10, 10], [20, 20]],
-    'activation': ["ReLU", "tanh", "sigmoid"],
-    'lr': [0.2, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0001],
-    'momentum': [0.99, 0.9, 0.8, 0.5, 0.2, 0.0],
-    'weight_decay': [0.1, 0.01, 0.001, 0.0001, 1e-5, 0.0],
-    'epochs': [300, 500, 800]
+    'hidden_layers': [[5], [10], [20], [10, 10]], 
+    'activation': ["ReLU", "tanh"], 
+    'lr': [0.1, 0.01, 0.001], 
+    'momentum': [0.7, 0.9], 
+    'weight_decay': [0.0001, 0.001], 
+    'epochs': [500] 
 }
 
 # Genera tutte le combinazioni
