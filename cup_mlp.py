@@ -15,11 +15,8 @@ X_cup = scaler_x.fit_transform(X_cup)
 scaler_y = StandardScaler()
 y_cup = scaler_y.fit_transform(y_cup)
 
-X_cup = X_cup[:20]
-y_cup = y_cup[:20]
 
-
-param_grid_big = {
+param_grid = {
     'hidden_layers': [
         [512],              # Quella attuale (Benchmark)
         [1024],             # The "Tank": Larghissima, cattura tutto subito
@@ -37,7 +34,8 @@ param_grid_big = {
     
     'lr': [0.001], # Adam a 0.001 è quasi sempre giusto
     'epochs': [800],
-    'batch_size': [64]
+    'batch_size': [64],
+    'momentum': [0]
 }
 
 keys, values = zip(*param_grid.items())

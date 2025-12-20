@@ -106,7 +106,7 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None, tas
     }
 
 
-    patience = 20
+    patience = 1
     trigger_times = 0
     best_loss = float('inf')
     stop_epoch = epochs
@@ -127,51 +127,51 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None, tas
             
             epoch_loss += loss.item() * X_batch.size(0) 
             
-        # Loss media dell'epoca
-        avg_loss = epoch_loss / len(train_loader.dataset)
-        history['train_loss'].append(avg_loss)
+        if epoch % 50 == 0 or epoch == epochs - 1:
+            avg_loss = epoch_loss / len(train_loader.dataset)
+            history['train_loss'].append(avg_loss)
 
-        model.eval()
-        with torch.no_grad():
-            train_out = model(X_train)
+            model.eval()
+            with torch.no_grad():
+                train_out = model(X_train)
 
-            if task_type == 'regression':
-                tr_errors = train_out - y_train
-                train_score  = torch.norm(tr_errors, p=2, dim=1).mean().item()
-            else:
-                train_pred = (train_out > 0.5).float()
-                train_score = (train_pred == y_train).float().mean().item()
-            
-
-            history['train_score'].append(train_score)
-
-            # Validation
-            if X_val is not None:
-                val_out = model(X_val)
-                v_loss = criterion(val_out, y_val)
-                
                 if task_type == 'regression':
-                    # MEE per Regressione
-                    val_err = val_out - y_val
-                    val_score = torch.norm(val_err, p=2, dim=1).mean().item()
+                    tr_errors = train_out - y_train
+                    train_score  = torch.norm(tr_errors, p=2, dim=1).mean().item()
                 else:
-                    # Accuracy per Classificazione
-                    val_pred = (val_out > 0.5).float()
-                    val_score = (val_pred == y_val).float().mean().item()               
+                    train_pred = (train_out > 0.5).float()
+                    train_score = (train_pred == y_train).float().mean().item()
                 
-                history['val_loss'].append(v_loss.item())
-                history['val_score'].append(val_score)
 
-                # Early Stopping Check
-                if v_loss < best_loss:
-                    best_loss = v_loss
-                    trigger_times = 0
-                else:
-                    trigger_times += 1
+                history['train_score'].append(train_score)
+
+                # Validation
+                if X_val is not None:
+                    val_out = model(X_val)
+                    v_loss = criterion(val_out, y_val)
                     
-                    if es and trigger_times >= patience:
-                        stop_epoch = epoch
-                        break 
+                    if task_type == 'regression':
+                        # MEE per Regressione
+                        val_err = val_out - y_val
+                        val_score = torch.norm(val_err, p=2, dim=1).mean().item()
+                    else:
+                        # Accuracy per Classificazione
+                        val_pred = (val_out > 0.5).float()
+                        val_score = (val_pred == y_val).float().mean().item()               
+                    
+                    history['val_loss'].append(v_loss.item())
+                    history['val_score'].append(val_score)
+
+                    # Early Stopping Check
+                    if v_loss < best_loss:
+                        best_loss = v_loss
+                        trigger_times = 0
+                    else:
+                        trigger_times += 1
+                        
+                        if es and trigger_times >= patience:
+                            stop_epoch = epoch
+                            break 
     for key in history:
         history[key] = np.array(history[key])
     
