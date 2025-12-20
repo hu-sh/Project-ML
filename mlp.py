@@ -6,33 +6,79 @@ import itertools
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
 from utils import load_monk_data, get_encoder
 import numpy as np
+import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 
-# --- 2. DEFINIZIONE MODELLO DINAMICO ---
 class DynamicMLP(nn.Module):
-    def __init__(self, input_size, hidden_layers, activation_function):
+    def __init__(self, input_size, hidden_layers, activation_function, output_size=1, task_type='regression'):
         super(DynamicMLP, self).__init__()
         layers = []
         in_dim = input_size
         for h_dim in hidden_layers:
-            layers.append(nn.Linear(in_dim, h_dim))
+            layer = nn.Linear(in_dim, h_dim)
+            
+            if activation_function == nn.Tanh:
+                nn.init.xavier_uniform_(layer.weight)
+            elif activation_function == nn.ReLU or activation_function == nn.LeakyReLU: 
+                nn.init.kaiming_uniform_(layer.weight, nonlinearity='leaky_relu')            
+
+            layers.append(layer)
             layers.append(activation_function())
+            
             in_dim = h_dim
-        layers.append(nn.Linear(in_dim, 1))
-        layers.append(nn.Sigmoid())
-        self.net = nn.Sequential(*layers)
+
+        layers.append(nn.Linear(in_dim, output_size))
         
+        if task_type == 'classification':
+            layers.append(nn.Sigmoid())
+            
+        self.net = nn.Sequential(*layers)
+
     def forward(self, x):
         return self.net(x)
 
 
-act_map = {"ReLU": nn.ReLU, "tanh": nn.Tanh, "sigmoid": nn.Sigmoid}
-def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None):
+def average_histories(histories):
+    averaged = {}
+    metrics = histories[0].keys() # es. ['train_loss', 'val_loss', ...]
+
+    max_epochs = max([len(h['train_loss']) for h in histories])
+
+    for metric in metrics:
+        all_fold_values = []
+
+        for h in histories:
+            values = h[metric] 
+            current_len = len(values)
+
+            if current_len < max_epochs:
+                diff = max_epochs - current_len
+                
+                last_val = values[-1]
+                
+                padding = np.full(diff, last_val)
+                
+                values = np.concatenate((values, padding))
+            
+            all_fold_values.append(values)
+
+        all_fold_stack = np.vstack(all_fold_values)
+
+        averaged[metric] = np.mean(all_fold_stack, axis=0) # es. 'val_loss' diventa la media
+        averaged[f'std_{metric}'] = np.std(all_fold_stack, axis=0)
+
+    return averaged
+
+
+act_map = {"ReLU": nn.ReLU, "tanh": nn.Tanh, "sigmoid": nn.Sigmoid, "LeakyReLU": nn.LeakyReLU}
+def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None, task_type='regression'):
+    # X_train, y_train, X_val, y_val must be tensorized
     h_layers = config['hidden_layers']
     act_fn = act_map[config['activation']]      
     lr = config['lr']
@@ -40,26 +86,34 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None):
     wd = config['weight_decay'] 
     epochs = config['epochs']
     batch_size = config.get('batch_size', 32) 
+    es = config.get('es', False)
     
-    model = DynamicMLP(input_dim, h_layers, act_fn) 
+    output_dim = y_train.shape[1] if len(y_train.shape) > 1 else 1
+
+    model = DynamicMLP(input_dim, h_layers, act_fn, output_size=output_dim, task_type=task_type)
     
     train_ds = TensorDataset(X_train, y_train)
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     
     criterion = nn.MSELoss() 
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=mom, weight_decay=wd)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
     
     model.train()
-    train_loss_history = []
-    val_loss_history = []
-
+    
+    history = {
+        'train_loss': [], 'val_loss': [],
+        'train_score': [], 'val_score': []
+    }
 
 
     patience = 20
     trigger_times = 0
     best_loss = float('inf')
+    stop_epoch = epochs
+    
     for epoch in range(epochs):
         epoch_loss = 0.0
+
         for X_batch, y_batch in train_loader:
             optimizer.zero_grad()
             
@@ -75,101 +129,181 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None):
             
         # Loss media dell'epoca
         avg_loss = epoch_loss / len(train_loader.dataset)
-        train_loss_history.append(avg_loss)
+        history['train_loss'].append(avg_loss)
 
-        if X_val != None:
-            model.eval()
-            with torch.no_grad():
+        model.eval()
+        with torch.no_grad():
+            train_out = model(X_train)
+
+            if task_type == 'regression':
+                tr_errors = train_out - y_train
+                train_score  = torch.norm(tr_errors, p=2, dim=1).mean().item()
+            else:
+                train_pred = (train_out > 0.5).float()
+                train_score = (train_pred == y_train).float().mean().item()
+            
+
+            history['train_score'].append(train_score)
+
+            # Validation
+            if X_val is not None:
                 val_out = model(X_val)
                 v_loss = criterion(val_out, y_val)
-                val_loss_history.append(v_loss.item())
-            model.train()
+                
+                if task_type == 'regression':
+                    # MEE per Regressione
+                    val_err = val_out - y_val
+                    val_score = torch.norm(val_err, p=2, dim=1).mean().item()
+                else:
+                    # Accuracy per Classificazione
+                    val_pred = (val_out > 0.5).float()
+                    val_score = (val_pred == y_val).float().mean().item()               
+                
+                history['val_loss'].append(v_loss.item())
+                history['val_score'].append(val_score)
+
+                # Early Stopping Check
+                if v_loss < best_loss:
+                    best_loss = v_loss
+                    trigger_times = 0
+                else:
+                    trigger_times += 1
+                    
+                    if es and trigger_times >= patience:
+                        stop_epoch = epoch
+                        break 
+    for key in history:
+        history[key] = np.array(history[key])
+    
+    return model, history, stop_epoch
 
 
-            if v_loss < best_loss:
-                best_loss = v_loss
-                trigger_times = 0
-                # Opzionale: salva qui i pesi del modello migliore
-            else:
-                trigger_times += 1
-                if trigger_times >= patience:
-                    # print(f"Early stopping at epoch {epoch}")
-                    break 
-        
-    return model, train_loss_history, val_loss_history
 
 
-def grid_search_split(combinations, X, y):
-    best_acc = 0
+def plot_training_history(history, title=""):
+    epochs = range(1, len(history['train_loss']) + 1)
+    
+    plt.figure(figsize=(16, 6))
+    
+    # --- GRAFICO LOSS ---
+    plt.subplot(1, 2, 1)
+    
+    # Training Loss
+    tr_loss = history['train_loss']
+    std_tr_loss = history.get('std_train_loss', np.zeros(len(tr_loss)))
+    plt.plot(epochs, tr_loss, label='Training Loss', color='blue')
+    plt.fill_between(epochs, 
+                     tr_loss - std_tr_loss, 
+                     tr_loss + std_tr_loss, 
+                     color='blue', alpha=0.15, label='Std Dev (Train)')
+    
+    # Validation Loss
+    if 'val_loss' in history:
+        val_loss = history['val_loss']
+        std_val_loss = history.get('std_val_loss', np.zeros(len(val_loss)))       
+        plt.plot(epochs, val_loss, label='Avg Validation Loss', color='orange', linestyle='--')
+        plt.fill_between(epochs, 
+                         val_loss - std_val_loss, 
+                         val_loss + std_val_loss, 
+                         color='orange', alpha=0.15, label='Std Dev (Val)')
+    
+    plt.title(f'{title} - Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss (MSE)')
+    plt.legend()
+    plt.grid(True)
+    
+    # --- GRAFICO ACCURACY ---
+    plt.subplot(1, 2, 2)
+    
+    # Training Accuracy
+    if 'train_score' in history:
+        tr_score = history['train_score']
+        std_tr_score = history.get('std_train_score', np.zeros(len(tr_score)))
+        plt.plot(epochs, tr_score, label='Avg Training Acc', color='green')
+        plt.fill_between(epochs, 
+                         tr_score - std_tr_score, 
+                         tr_score + std_tr_score, 
+                         color='green', alpha=0.15, label='Std Dev (Train)')
+
+    # Validation Accuracy
+    if 'val_score' in history:
+        val_score = history['val_score']
+        std_val_score = history.get('std_val_score', np.zeros(len(val_score)))
+        plt.plot(epochs, val_score, label='Avg Validation Acc', color='red', linestyle='--')
+        plt.fill_between(epochs, 
+                         val_score - std_val_score, 
+                         val_score + std_val_score, 
+                         color='red', alpha=0.15, label='Std Dev (Val)')
+    
+    plt.title(f'{title} - Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend(loc='lower right')
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+
+def grid_search_split(combinations, X, y, task_type='regression'):
+    best_score = float('inf') if task_type=='regression' else -1
     best_config = {}
-    best_model_state = None
     best_history = {}   
-    best_model = None
-    all_results = []     
-
 
     X_train, X_val, y_train, y_val = train_test_split(X_train_enc, y_train_, test_size=0.3, random_state=123)
     input_dim = X_train.shape[1]
     # Tensor
     X_train_t = torch.FloatTensor(X_train)
-    y_train_t = torch.FloatTensor(y_train).view(-1, 1)
+    y_train_t = torch.FloatTensor(y_train)
     X_val_t = torch.FloatTensor(X_val)
-    y_val_t = torch.FloatTensor(y_val).view(-1, 1)
+    y_val_t = torch.FloatTensor(y_val)
 
+    if task_type == 'classification':
+        y_train_t = y_train_t.view(-1, 1)
+        y_val_t = y_val_t.view(-1,1)
 
     for i, config in enumerate(combinations):
  
-        model, temp_train_loss, temp_val_loss = train_model(config, input_dim, X_train_t, y_train_t, X_val_t, y_val_t) 
+        model, history, _  = train_model(config, input_dim, X_train_t, y_train_t, X_val_t, y_val_t, task_type=task_type) 
             
-        # Valutazione
-        model.eval()
-        with torch.no_grad():
-            preds = model(X_val_t)
-            pred_lbl = (preds > 0.5).float()
-            acc = (pred_lbl == y_val_t).sum() / len(y_val_t)
-            acc_val = acc.item()
-
-        
-        config['acc'] = acc_val
         all_results.append(config)  
         
         # Salva il migliore
-        if acc_val > best_acc or best_model == None:
-            best_acc = acc_val
+        if (task_type=='regression') == (history['val_score'][-1] < best_score):
+            best_score = score_val
             best_config = config
             
-            best_history = {
-                'train': temp_train_loss[:], 
-                'val': temp_val_loss[:]
-            }
+            best_history = history
 
-            best_model = model
             # Salva i pesi (state_dict) se vuoi riusarlo
             # torch.save(model.state_dict(), 'best_model_temp.pth')
 
 
-    return best_acc, best_config, best_history, all_results
+    return best_config, best_history, all_results
 
 
-def grid_search_kfold_cv(combinations, X, y):
-    best_acc = 0
+def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression'):
+    best_score = float('inf') if task_type=='regression' else -1
     best_std = -1
     best_config = {}
-    best_model_state = None
-    best_history = {}   
-    best_model = None
+    best_histories = {}  
+    best_avg_stop = -1
     all_results = []   
 
-    skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42)
-
+    if task_type == 'regression':
+        cv = KFold(n_splits=k_folds, shuffle=True, random_state=42)
+    else:
+        cv = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42)
 
     for i, config in enumerate(combinations):
      
-        val_accuracies = []
-        
+        val_scores = []
+        histories = []
+        stops = 0
+
         # --- INIZIO CROSS VALIDATION PER QUESTA CONFIG ---
         # skf.split vuole X e y per bilanciare le classi, anche se usiamo gli indici
-        for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
+        for fold, (train_idx, val_idx) in enumerate(cv.split(X, y)):
             # A. Split dei dati raw
             X_train_fold = X[train_idx]
             y_train_fold = y[train_idx]
@@ -179,122 +313,53 @@ def grid_search_kfold_cv(combinations, X, y):
             
             # C. Conversione in Tensori
             X_tr_t = torch.FloatTensor(X_train_fold)
-            y_tr_t = torch.FloatTensor(y_train_fold).view(-1, 1)
+            y_tr_t = torch.FloatTensor(y_train_fold)
             X_val_t = torch.FloatTensor(X_val_fold)
-            y_val_t = torch.FloatTensor(y_val_fold).view(-1, 1)
-            
+            y_val_t = torch.FloatTensor(y_val_fold)
+
+            if task_type == 'classification':
+                y_tr_t = y_tr_t.view(-1, 1)
+                y_val_t = y_val_t.view(-1,1)
+
             input_dim = X_tr_t.shape[1]
             
-            model, tmp_train_loss, tmp_val_loss = train_model(config, input_dim, X_tr_t, y_tr_t, X_val_t, y_val_t)
-                
-            # F. Valutazione sul Fold corrente
-            model.eval()
-            with torch.no_grad():
-                preds = model(X_val_t)
-                preds_lbl = (preds > 0.5).float()
-                acc = (preds_lbl == y_val_t).float().mean().item()
-                val_accuracies.append(acc)
+            model, history, stop = train_model(config, input_dim, X_tr_t, y_tr_t, X_val_t, y_val_t, task_type=task_type)
+            stops += stop
+            histories.append(history)
+
+            val_scores.append(history['val_score'][-1])
                 
         # --- FINE CROSS VALIDATION ---
         
-        # Calcola media accuracy per questa config
-        avg_acc = np.mean(val_accuracies)
-        std_acc = np.std(val_accuracies)
+        # Calcola media scoreuracy per questa config
+        avg_score = np.mean(val_scores)
+        std_score = np.std(val_scores)
         
-        print(f"Config {i}: Avg Acc: {avg_acc:.4f} (+/- {std_acc:.4f}) | {config}")
+        score_string = 'scoreuracy' if task_type == 'classification' else 'MEE'
+        print(f"Config {i}: Avg {score_string}: {avg_score:.4f} (+/- {std_score:.4f}) | {config}")
         
         # Salva risultato
         res_entry = config.copy()
-        res_entry['mean_val_acc'] = avg_acc
-        res_entry['std_val_acc'] = std_acc
+        res_entry['mean_val_score'] = avg_score
+        res_entry['std_val_score'] = std_score
         all_results.append(res_entry)
         
-        if avg_acc > best_acc or best_model == None:
-            best_acc = avg_acc 
-            best_std = std_acc
+        if (task_type=='regression') == (avg_score < best_score):
+            best_score = avg_score 
             best_config = config
             
-            best_history = {
-                'train': tmp_train_loss[:], 
-                'val': tmp_val_loss[:]
-            }
+            best_histories = histories
+
+            best_avg_stop = stops/k_folds
 
             # Salva i pesi (state_dict) se vuoi riusarlo
             # torch.save(model.state_dict(), 'best_model_temp.pth')
+            # torch.save(model.state_dict(), 'best_model_temp.pth')
 
 
-    return best_acc, best_std, best_config, best_history, all_results
+    return best_config, best_histories, best_avg_stop, all_results
 
 
-
-# --- 1. SETUP DATI ---
-k_folds = 5
-
-train_path = 'data/MONK/monks-3.train' 
-X_raw_train, y_train = load_monk_data(train_path)
-encoder = get_encoder(X_raw_train)
-X_train_enc = encoder.transform(X_raw_train)
-
-input_dim = X_train_enc.shape[1]
-
-test_path = 'data/MONK/monks-3.test' 
-X_raw_test, y_test = load_monk_data(test_path)
-encoder = get_encoder(X_raw_test)
-X_test_enc = encoder.transform(X_raw_test)
-
-X_test_t = torch.FloatTensor(X_test_enc)
-y_test_t = torch.FloatTensor(y_test).view(-1, 1)
-
-   
-
-# --- 3. GRIGLIA IPERPARAMETRI ---
-param_grid = {
-    'hidden_layers': [[5], [10], [20], [10, 10]], 
-    'activation': ["ReLU", "tanh"], 
-    'lr': [0.1, 0.01, 0.001], 
-    'momentum': [0.7, 0.9], 
-    'weight_decay': [0.0001, 0.001], 
-    'epochs': [500] 
-}
-
-# Genera tutte le combinazioni
-keys, values = zip(*param_grid.items())
-combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
-
-print(f"Combinations to test: {len(combinations)}")
-
-best_acc, best_std, best_config, best_history, all_results = grid_search_kfold_cv(combinations, X_train_enc, y_train)
-df = pd.DataFrame(all_results)
-
-
-
-
-print("\n-------------------------------------------")
-print(f"🏆 Best Configuration Found (Acc: {best_acc:.4f}):")
-print(f"Hidden layers: {best_config['hidden_layers']}")
-print(f"Activation function: {best_config['activation']}")
-print(f"LR: {best_config['lr']} | Momentum: {best_config['momentum']}")
-print(f"Weight decay: {best_config['weight_decay']}")
-print(f"Epochs: {best_config['epochs']}")
-print("-------------------------------------------")
-
-
-
-############ BEST CONFIG TEST ON MONKS.TEST
-X = torch.FloatTensor(X_train_enc)
-y = torch.FloatTensor(y_train).view(-1, 1)
-model, train_loss, val_loss = train_model(best_config, input_dim, X, y)
-model.eval()
-with torch.no_grad():
-    preds = model(X_test_t)
-    pred_lbl = (preds > 0.5).float()
-    acc = (pred_lbl == y_test_t).sum() / len(y_test_t)
-    acc_test = acc.item()
-    print("Accuracy on test set: ", acc_test)
-
-
-
-## cambiare il random-state dello splitting porta a risultati diversi. fare k-fold cv dovrebbe risolvere.
 
 
 

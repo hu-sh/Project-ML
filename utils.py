@@ -12,6 +12,18 @@ def load_monk_data(file_path):
     
     return X_raw, y
 
+def load_cup_data(file_path):
+    df = pd.read_csv(file_path, comment='#', header=None)
+    
+    df = df.iloc[:, 1:] 
+    
+    X = df.iloc[:, 0:12].values
+    
+    y = df.iloc[:, 12:].values
+    
+    return X, y
+
+
 def get_encoder(X_train):
     encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
     encoder.fit(X_train)
