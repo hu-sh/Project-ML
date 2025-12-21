@@ -23,6 +23,10 @@ scaler_x = StandardScaler()
 X_train = scaler_x.fit_transform(X_train_raw)
 X_test = scaler_x.transform(X_test_raw)
 
+scaler_y = StandardScaler()
+y_train = scaler_y.fit_transform(y_train)
+y_test = scaler_y.transform(y_test)
+
 param_grid = {
     "n_estimators": [200, 400, 600],
     "learning_rate": [0.05, 0.1],
