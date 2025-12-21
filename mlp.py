@@ -294,7 +294,7 @@ def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression'):
         cv = KFold(n_splits=k_folds, shuffle=True, random_state=42)
     else:
         cv = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42)
-
+        
     for i, config in enumerate(combinations):
      
         val_scores = []
