@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 
 from mlp import *
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # --- 1. SETUP DATI ---
 k_folds = 5
 
@@ -27,8 +29,8 @@ X_raw_test, y_test = load_monk_data(test_path)
 encoder = get_encoder(X_raw_test)
 X_test_enc = encoder.transform(X_raw_test)
 
-X_test_t = torch.FloatTensor(X_test_enc)
-y_test_t = torch.FloatTensor(y_test).view(-1, 1)
+X_test_t = torch.FloatTensor(X_test_enc).to(device)
+y_test_t = torch.FloatTensor(y_test).view(-1, 1).to(device)
 
    
 
@@ -57,7 +59,7 @@ avg_best_history = average_histories(best_histories)
 plot_training_history(avg_best_history)
 
 print("\n-------------------------------------------")
-print(f"🏆 Best Configuration Found (Acc: {avg_best_history['val_acc'][-1]:.4f}):")
+print(f"🏆 Best Configuration Found (Acc: {avg_best_history['val_score'][-1]:.4f}):")
 print(f"Hidden layers: {best_config['hidden_layers']}")
 print(f"Activation function: {best_config['activation']}")
 print(f"LR: {best_config['lr']} | Momentum: {best_config['momentum']}")
