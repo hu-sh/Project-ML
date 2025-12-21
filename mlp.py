@@ -352,6 +352,7 @@ def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression'):
 
             best_avg_stop = stops/k_folds
 
+            best_model = model
             # Salva i pesi (state_dict) se vuoi riusarlo
             # torch.save(model.state_dict(), 'best_model_temp.pth')
             # torch.save(model.state_dict(), 'best_model_temp.pth')

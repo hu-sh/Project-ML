@@ -6,8 +6,8 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 # 1. CARICAMENTO DATI (Uguale agli altri file)
 # ---------------------------------------------------------
 # Cambia 'monks-1.train' con monks-2 o monks-3 a seconda del task
-train_file = 'monks-1.train'
-test_file = 'monks-1.test'
+train_file = 'data/CUP/monks-1.train'
+test_file = 'data/CUP/monks-1.test'
 
 print(f"--- Training GBRT su {train_file} ---")
 
