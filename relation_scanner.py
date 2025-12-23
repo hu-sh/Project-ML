@@ -24,6 +24,15 @@ def pair_names(n_cols: int) -> List[Pair]:
     return [(i, j) for i in range(n_cols) for j in range(i + 1, n_cols)]
 
 
+def triple_names(n_cols: int) -> List[Tuple[int, int, int]]:
+    return [
+        (i, j, k)
+        for i in range(n_cols)
+        for j in range(i + 1, n_cols)
+        for k in range(j + 1, n_cols)
+    ]
+
+
 def build_features(arr: np.ndarray, prefix: str) -> FeatureDict:
     feats: FeatureDict = {}
     # Single-variable features
@@ -31,12 +40,17 @@ def build_features(arr: np.ndarray, prefix: str) -> FeatureDict:
         feats[f"raw_{prefix}_{i+1}"] = arr[:, i]
         feats[f"abs_{prefix}_{i+1}"] = np.abs(arr[:, i])
         feats[f"sign_{prefix}_{i+1}"] = np.sign(arr[:, i])
+        feats[f"square_{prefix}_{i+1}"] = arr[:, i] ** 2
     # Aggregates across all variables
     eps = 1e-12
     geom_all = np.exp(np.mean(np.log(np.abs(arr) + eps), axis=1))
     mean_abs_all = np.mean(np.abs(arr), axis=1)
+    l2_all = np.linalg.norm(arr, axis=1)
+    max_abs_all = np.max(np.abs(arr), axis=1)
     feats[f"geom_all_{prefix}"] = geom_all
     feats[f"meanabs_all_{prefix}"] = mean_abs_all
+    feats[f"l2_all_{prefix}"] = l2_all
+    feats[f"maxabs_all_{prefix}"] = max_abs_all
     # Aggregates excluding x_6 (only for inputs)
     if prefix == "input" and arr.shape[1] >= 6:
         mask = np.ones(arr.shape[1], dtype=bool)
@@ -57,6 +71,20 @@ def build_features(arr: np.ndarray, prefix: str) -> FeatureDict:
         feats[f"radius_{pfx}"] = np.hypot(a_i, a_j)
         feats[f"angle_{pfx}"] = np.arctan2(a_j, a_i)
         feats[f"geom_{pfx}"] = np.sqrt(abs(a_i * a_j))
+        feats[f"ratio_{pfx}"] = a_i / (a_j + eps)
+
+    """
+    # Triple-wise aggregates (sum, product, L2 norm, geometric mean, mean abs)
+    for i, j, k in triple_names(arr.shape[1]):
+        pfx3 = f"{prefix}_{i+1}_{j+1}_{k+1}"
+        a_i, a_j, a_k = arr[:, i], arr[:, j], arr[:, k]
+        feats[f"sum3_{pfx3}"] = a_i + a_j + a_k
+        feats[f"prod3_{pfx3}"] = a_i * a_j * a_k
+        feats[f"l2_3_{pfx3}"] = np.sqrt(a_i**2 + a_j**2 + a_k**2)
+        feats[f"meanabs3_{pfx3}"] = (np.abs(a_i) + np.abs(a_j) + np.abs(a_k)) / 3.0
+        feats[f"geom3_{pfx3}"] = np.exp(np.mean(np.log(np.abs(np.vstack([a_i, a_j, a_k]).T) + eps), axis=1))
+    """
+
     return feats
 
 
@@ -110,6 +138,51 @@ def compute_near_equalities(
                 records.append(
                     {
                         "relation": f"{name_t} ~ {scale} * {name_x}",
+                        "mean_abs": mean_abs,
+                        "median_abs": median_abs,
+                        "max_abs": max_abs,
+                        "mean_abs_norm": mean_abs_norm,
+                        "median_abs_norm": median_abs_norm,
+                        "max_abs_norm": max_abs_norm,
+                        f"pct<= {small_thr}": pct_small,
+                        f"pct<= {medium_thr}": pct_med,
+                    }
+                )
+
+    # Also compare target features against other target features (y_i vs y_j).
+    target_items = list(targets.items())
+    for idx_t, (name_t, vals_t) in enumerate(target_items):
+        base_name = name_t.split("_", 1)[0]
+        for name_u, vals_u in target_items[idx_t + 1 :]:
+            if not name_u.startswith(base_name):
+                continue
+            if base_name == "angle":
+                residual = angle_residual(vals_t, vals_u)
+                candidates = [("1.0", residual)]
+            else:
+                residual_unscaled = np.abs(vals_t - vals_u)
+                denom = float(np.dot(vals_u, vals_u))
+                if denom > 0:
+                    a = float(np.dot(vals_t, vals_u) / denom)
+                    residual_scaled = np.abs(vals_t - a * vals_u)
+                    candidates = [("1.0", residual_unscaled), (f"{a:.4f}", residual_scaled)]
+                else:
+                    candidates = [("1.0", residual_unscaled)]
+
+            for scale, residual in candidates:
+                denom_norm = np.maximum(np.maximum(np.abs(vals_t), np.abs(vals_u)), 1e-6)
+                residual_norm = residual / denom_norm
+                mean_abs = float(residual.mean())
+                median_abs = float(np.median(residual))
+                max_abs = float(residual.max())
+                mean_abs_norm = float(residual_norm.mean())
+                median_abs_norm = float(np.median(residual_norm))
+                max_abs_norm = float(residual_norm.max())
+                pct_small = float((residual_norm <= small_thr).mean())
+                pct_med = float((residual_norm <= medium_thr).mean())
+                records.append(
+                    {
+                        "relation": f"{name_t} ~ {scale} * {name_u}",
                         "mean_abs": mean_abs,
                         "median_abs": median_abs,
                         "max_abs": max_abs,

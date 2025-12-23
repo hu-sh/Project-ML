@@ -206,3 +206,163 @@ plt.show()
 
 print(f"\nTraining terminato all'epoca: {stop_epoch_am}")
 print(f"MEE finale (std) su Validation: {history_am['val_score'][-1]:.6f}")
+
+#=====================================================
+# --- STACKING: usa le predizioni ausiliarie come feature per y1..y4 ---
+# Aux target set: r12, y3-y4, mean_abs_y
+print("\n" + "="*40)
+print("STACKING: y1..y4 con feature estese da aux (r12, y3-y4, mean|y|)")
+print("="*40)
+
+y_main = y[:, :4]
+y_r12 = np.sqrt(y[:, 0] ** 2 + y[:, 1] ** 2).reshape(-1, 1)
+y_diff34 = (y[:, 2] - y[:, 3]).reshape(-1, 1)
+y_meanabs = np.mean(np.abs(y_main), axis=1, keepdims=True)
+y_aux = np.hstack([y_r12, y_diff34, y_meanabs])  # shape (n,3)
+
+# Split for aux model
+X_train_aux, X_val_aux, y_train_aux, y_val_aux = train_test_split(
+    X_signed, y_aux, test_size=0.2, random_state=42
+)
+
+scaler_x_aux = StandardScaler()
+X_train_aux = scaler_x_aux.fit_transform(X_train_aux)
+X_val_aux = scaler_x_aux.transform(X_val_aux)
+
+scaler_y_aux = StandardScaler()
+y_train_aux = scaler_y_aux.fit_transform(y_train_aux)
+y_val_aux = scaler_y_aux.transform(y_val_aux)
+
+X_train_aux_t = torch.FloatTensor(X_train_aux)
+y_train_aux_t = torch.FloatTensor(y_train_aux)
+X_val_aux_t = torch.FloatTensor(X_val_aux)
+y_val_aux_t = torch.FloatTensor(y_val_aux)
+
+print("\nAddestramento modello ausiliario (r12, y3-y4, mean|y|)...")
+aux_model, aux_history, aux_stop = train_model(
+    config,
+    input_dim=X_signed.shape[1],
+    X_train=X_train_aux_t,
+    y_train=y_train_aux_t,
+    X_val=X_val_aux_t,
+    y_val=y_val_aux_t,
+    task_type='regression'
+)
+
+# Predizioni ausiliarie sull'intero dataset (nello spazio scalato aux)
+X_all_aux = scaler_x_aux.transform(X_signed)
+X_all_aux_t = torch.FloatTensor(X_all_aux)
+with torch.no_grad():
+    aux_pred_all_scaled = aux_model(X_all_aux_t).cpu().numpy()
+
+# Inverso scaling aux per riportarle nello spazio originale
+aux_pred_all = scaler_y_aux.inverse_transform(aux_pred_all_scaled)
+
+# Split coerente per il modello principale: usa aux_pred_all come feature extra
+X_train_main_raw, X_val_main_raw, y_train_main, y_val_main, aux_pred_train, aux_pred_val = train_test_split(
+    X_signed, y_main, aux_pred_all, test_size=0.2, random_state=42
+)
+
+X_train_main_aug = np.hstack([X_train_main_raw, aux_pred_train])
+X_val_main_aug = np.hstack([X_val_main_raw, aux_pred_val])
+
+scaler_x_main = StandardScaler()
+X_train_main_aug = scaler_x_main.fit_transform(X_train_main_aug)
+X_val_main_aug = scaler_x_main.transform(X_val_main_aug)
+
+scaler_y_main = StandardScaler()
+y_train_main = scaler_y_main.fit_transform(y_train_main)
+y_val_main = scaler_y_main.transform(y_val_main)
+
+X_train_main_t = torch.FloatTensor(X_train_main_aug)
+y_train_main_t = torch.FloatTensor(y_train_main)
+X_val_main_t = torch.FloatTensor(X_val_main_aug)
+y_val_main_t = torch.FloatTensor(y_val_main)
+
+print("\nAddestramento modello principale con feature ausiliarie...")
+main_model, main_history, main_stop = train_model(
+    config,
+    input_dim=X_train_main_aug.shape[1],
+    X_train=X_train_main_t,
+    y_train=y_train_main_t,
+    X_val=X_val_main_t,
+    y_val=y_val_main_t,
+    task_type='regression'
+)
+
+plot_training_history(main_history, title="MLP stacking: y1..y4 con aux feature")
+plt.show()
+
+# Valutazione (non scalata)
+with torch.no_grad():
+    pred_val_scaled = main_model(X_val_main_t).cpu().numpy()
+pred_val = scaler_y_main.inverse_transform(pred_val_scaled)
+y_val_true = scaler_y_main.inverse_transform(y_val_main)
+
+mae_per_output = np.mean(np.abs(pred_val - y_val_true), axis=0)
+rmse_main = np.sqrt(np.mean((pred_val - y_val_true) ** 2))
+
+print(f"\nMAE per output (y1..y4) stacking:", np.round(mae_per_output, 4))
+print(f"RMSE complessivo (y1..y4) stacking: {rmse_main:.4f}")
+
+#=====================================================
+# --- MULTITASK: stima congiunta di y1..y4 + tre target ausiliari ---
+# Aux targets: r12 = sqrt(y1^2 + y2^2), diff34 = y3 - y4, mean_abs = mean(|y1..y4|)
+print("\n" + "="*40)
+print("MULTITASK: y1..y4 + (r12, y3-y4, mean|y|) in un unico modello")
+print("="*40)
+
+y_main = y[:, :4]
+y_r12 = np.sqrt(y[:, 0] ** 2 + y[:, 1] ** 2).reshape(-1, 1)
+y_diff34 = (y[:, 2] - y[:, 3]).reshape(-1, 1)
+y_meanabs = np.mean(np.abs(y_main), axis=1, keepdims=True)
+y_multi = np.hstack([y_main, y_r12, y_diff34, y_meanabs])  # shape (n,7)
+
+X_train_mt, X_val_mt, y_train_mt, y_val_mt = train_test_split(
+    X_signed, y_multi, test_size=0.2, random_state=42
+)
+
+scaler_x_mt = StandardScaler()
+X_train_mt = scaler_x_mt.fit_transform(X_train_mt)
+X_val_mt = scaler_x_mt.transform(X_val_mt)
+
+scaler_y_mt = StandardScaler()
+y_train_mt = scaler_y_mt.fit_transform(y_train_mt)
+y_val_mt = scaler_y_mt.transform(y_val_mt)
+
+X_train_mtt = torch.FloatTensor(X_train_mt)
+y_train_mtt = torch.FloatTensor(y_train_mt)
+X_val_mtt = torch.FloatTensor(X_val_mt)
+y_val_mtt = torch.FloatTensor(y_val_mt)
+
+print("\nInizio training multitask (7 output)...")
+model_mt, history_mt, stop_epoch_mt = train_model(
+    config,
+    input_dim=X_signed.shape[1],
+    X_train=X_train_mtt,
+    y_train=y_train_mtt,
+    X_val=X_val_mtt,
+    y_val=y_val_mtt,
+    task_type='regression'
+)
+
+plot_training_history(history_mt, title="MLP: Multitask y1..y4 + aux")
+plt.show()
+
+print(f"\nTraining terminato all'epoca: {stop_epoch_mt}")
+
+# Valutazione su validation (solo y1..y4, riportate nello spazio originale)
+model_mt.eval()
+with torch.no_grad():
+    pred_val_scaled = model_mt(X_val_mtt.to(device)).cpu().numpy()
+
+pred_val = scaler_y_mt.inverse_transform(pred_val_scaled)
+y_val_true = scaler_y_mt.inverse_transform(y_val_mtt.numpy())
+
+pred_main = pred_val[:, :4]
+true_main = y_val_true[:, :4]
+mae_per_output = np.mean(np.abs(pred_main - true_main), axis=0)
+rmse = np.sqrt(np.mean((pred_main - true_main) ** 2))
+
+print("MAE per output (y1..y4):", mae_per_output)
+print(f"RMSE complessivo (y1..y4): {rmse:.4f}")
