@@ -1,0 +1,9 @@
+cose importanti:
+grafico y3-y4 vs norm(y1,y2) (ci farai semplice linear regressor)
+grafico y3-y4 vs media x_i (meno x_6) (ok mlp o svr)
+
+e così abbiamo errore bassissimo su ste due
+
+
+idea: se finisci a dover guardare segni, rendi tutto binario (in base al segno) e prova a vedere se ci sono relazioni binarie
+
