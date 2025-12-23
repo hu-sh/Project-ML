@@ -1,5 +1,6 @@
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import numpy as np
 
 from gbrt import (
     evaluate_gbrt_regressor,
@@ -13,7 +14,9 @@ train_file = "data/CUP/ML-CUP25-TR.csv"
 
 print(f"--- Training GBRT on {train_file} ---")
 
-X_raw, y_raw = load_cup_data(train_file)
+X_raw, y_raw_orig = load_cup_data(train_file)
+y_raw = np.hypot(y_raw_orig[:, 0], y_raw_orig[:, 1])
+# X_raw = np.delete(X_raw, 5, axis=1)
 
 X_train_raw, X_test_raw, y_train, y_test = train_test_split(
     X_raw, y_raw, test_size=0.2, random_state=42
@@ -24,8 +27,8 @@ X_train = scaler_x.fit_transform(X_train_raw)
 X_test = scaler_x.transform(X_test_raw)
 
 scaler_y = StandardScaler()
-y_train = scaler_y.fit_transform(y_train)
-y_test = scaler_y.transform(y_test)
+y_train = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
+y_test = scaler_y.transform(y_test.reshape(-1, 1)).ravel()
 
 param_grid = {
     "n_estimators": [200, 400, 600],
