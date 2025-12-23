@@ -26,6 +26,27 @@ def pair_names(n_cols: int) -> List[Pair]:
 
 def build_features(arr: np.ndarray, prefix: str) -> FeatureDict:
     feats: FeatureDict = {}
+    # Single-variable features
+    for i in range(arr.shape[1]):
+        feats[f"raw_{prefix}_{i+1}"] = arr[:, i]
+        feats[f"abs_{prefix}_{i+1}"] = np.abs(arr[:, i])
+        feats[f"sign_{prefix}_{i+1}"] = np.sign(arr[:, i])
+    # Aggregates across all variables
+    eps = 1e-12
+    geom_all = np.exp(np.mean(np.log(np.abs(arr) + eps), axis=1))
+    mean_abs_all = np.mean(np.abs(arr), axis=1)
+    feats[f"geom_all_{prefix}"] = geom_all
+    feats[f"meanabs_all_{prefix}"] = mean_abs_all
+    # Aggregates excluding x_6 (only for inputs)
+    if prefix == "input" and arr.shape[1] >= 6:
+        mask = np.ones(arr.shape[1], dtype=bool)
+        mask[5] = False  # zero-based index for x_6
+        arr_excl6 = arr[:, mask]
+        geom_excl6 = np.exp(np.mean(np.log(np.abs(arr_excl6) + eps), axis=1))
+        mean_abs_excl6 = np.mean(np.abs(arr_excl6), axis=1)
+        feats[f"geom_all_{prefix}_excl6"] = geom_excl6
+        feats[f"meanabs_all_{prefix}_excl6"] = mean_abs_excl6
+
     pairs = pair_names(arr.shape[1])
     for i, j in pairs:
         pfx = f"{prefix}_{i+1}_{j+1}"
@@ -34,10 +55,8 @@ def build_features(arr: np.ndarray, prefix: str) -> FeatureDict:
         feats[f"sum_{pfx}"] = a_i + a_j
         feats[f"diff_{pfx}"] = a_i - a_j
         feats[f"radius_{pfx}"] = np.hypot(a_i, a_j)
-    # Angle only for first two dimensions (common case)
-    if arr.shape[1] >= 2:
-        angles = np.arctan2(arr[:, 1], arr[:, 0])
-        feats[f"angle_{prefix}_1_2"] = angles
+        feats[f"angle_{pfx}"] = np.arctan2(a_j, a_i)
+        feats[f"geom_{pfx}"] = np.sqrt(abs(a_i * a_j))
     return feats
 
 
@@ -64,25 +83,45 @@ def compute_near_equalities(
                 continue
             if base_name == "angle":
                 residual = angle_residual(vals_t, vals_x)
+                candidates = [("1.0", residual)]
             else:
-                residual = np.abs(vals_t - vals_x)
-            mean_abs = float(residual.mean())
-            median_abs = float(np.median(residual))
-            max_abs = float(residual.max())
-            pct_small = float((residual <= small_thr).mean())
-            pct_med = float((residual <= medium_thr).mean())
-            records.append(
-                {
-                    "relation": f"{name_t} ~ {name_x}",
-                    "mean_abs": mean_abs,
-                    "median_abs": median_abs,
-                    "max_abs": max_abs,
-                    f"pct<= {small_thr}": pct_small,
-                    f"pct<= {medium_thr}": pct_med,
-                }
-            )
+                residual_unscaled = np.abs(vals_t - vals_x)
+                # Fit best scalar multiplier a = argmin ||t - a*x||^2
+                denom = float(np.dot(vals_x, vals_x))
+                if denom > 0:
+                    a = float(np.dot(vals_t, vals_x) / denom)
+                    residual_scaled = np.abs(vals_t - a * vals_x)
+                    candidates = [("1.0", residual_unscaled), (f"{a:.4f}", residual_scaled)]
+                else:
+                    candidates = [("1.0", residual_unscaled)]
 
-    records.sort(key=lambda r: r["mean_abs"])
+            for scale, residual in candidates:
+                denom = np.maximum(np.maximum(np.abs(vals_t), np.abs(vals_x)), 1e-6)
+                residual_norm = residual / denom
+
+                mean_abs = float(residual.mean())
+                median_abs = float(np.median(residual))
+                max_abs = float(residual.max())
+                mean_abs_norm = float(residual_norm.mean())
+                median_abs_norm = float(np.median(residual_norm))
+                max_abs_norm = float(residual_norm.max())
+                pct_small = float((residual_norm <= small_thr).mean())
+                pct_med = float((residual_norm <= medium_thr).mean())
+                records.append(
+                    {
+                        "relation": f"{name_t} ~ {scale} * {name_x}",
+                        "mean_abs": mean_abs,
+                        "median_abs": median_abs,
+                        "max_abs": max_abs,
+                        "mean_abs_norm": mean_abs_norm,
+                        "median_abs_norm": median_abs_norm,
+                        "max_abs_norm": max_abs_norm,
+                        f"pct<= {small_thr}": pct_small,
+                        f"pct<= {medium_thr}": pct_med,
+                    }
+                )
+
+    records.sort(key=lambda r: r["mean_abs_norm"])
     return records[:top_n]
 
 
@@ -99,13 +138,13 @@ def main() -> None:
         "--thr-small",
         type=float,
         default=0.1,
-        help="Threshold for tight residual fraction (default: 0.1)",
+        help="Threshold for tight residual fraction on normalized residuals (default: 0.1)",
     )
     parser.add_argument(
         "--thr-med",
         type=float,
         default=0.5,
-        help="Threshold for medium residual fraction (default: 0.5)",
+        help="Threshold for medium residual fraction on normalized residuals (default: 0.5)",
     )
     args = parser.parse_args()
 
