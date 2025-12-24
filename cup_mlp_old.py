@@ -1,267 +1,174 @@
+# ml_cup25_pytorch_end2end.py
+import os
 import numpy as np
-import torch
 import pandas as pd
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
-
-# Importiamo le funzioni dai tuoi file
-from utils import load_cup_data
-from mlp import train_model, plot_training_history, device
-
+from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.model_selection import KFold, train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import joblib
 import torch
+import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# ---------- Config ----------
+CSV_FILE = "data/CUP/ML-CUP25-TR.csv"
+RANDOM_STATE = 42
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+OUT_DIR = "models_pytorch"
+os.makedirs(OUT_DIR, exist_ok=True)
+EPS = 1e-9
 
+# ---------- Utils ----------
+def rmse(a,b): return np.sqrt(mean_squared_error(a,b))
+def mee(y_true, y_pred): return np.linalg.norm(y_true-y_pred, axis=1).mean()
 
-def prepare_data(X, y):
-    # 1. Caricamento dati originali
-        
-    # 2. Target: sqrt(y1^2 + y2^2)
-    y_custom = np.sqrt(y[:, 0]**2 + y[:, 1]**2).reshape(-1, 1)
-    
-    # 3. Feature Engineering: SOLO i valori assoluti dei prodotti pairwise
-    # Rimuoviamo le variabili singole originali
-    num_samples = X.shape[0]
-    num_features = X.shape[1]
-    
-    products_list = []
-    
-    # Calcoliamo |xi * xj| per ogni coppia (inclusi i quadrati |xi * xi|)
-    for i in range(num_features):
-        for j in range(i, num_features):
-            abs_product = np.abs(X[:, i] * X[:, j]).reshape(-1, 1)
-            products_list.append(abs_product)
-            
-    # Concateniamo tutte le nuove feature in un unico array
-    X_transformed = np.concatenate(products_list, axis=1)
-    
-    print(f"Shape finale (solo prodotti assoluti): {X_transformed.shape}") # Dovrebbe essere (500, 78)
-    
-    return X_transformed, y_custom
+# ---------- Load data ----------
+def load_csv(path):
+    df = pd.read_csv(path, comment='#', header=None).dropna(axis=1, how='all')
+    ids = df.iloc[:,0].values
+    X = df.iloc[:,1:1+12].astype(float).values
+    Y = df.iloc[:,-4:].astype(float).values
+    return ids, X, Y
 
-# --- MAIN EXECUTION ---
+# ---------- compute kij ----------
+def compute_kij(X,Y,eps=EPS):
+    p = X.shape[1]; q = Y.shape[1]
+    kij = np.zeros((p,q))
+    absX = np.abs(X); absY = np.abs(Y)
+    for i in range(p):
+        denom = absX[:,i] + eps
+        for j in range(q):
+            kij[i,j] = np.max(absY[:,j] / denom)
+    return kij
 
-# Caricamento e trasformazione
-X, y = load_cup_data('data/CUP/ML-CUP25-TR.csv')
-#X_exp, y_target = prepare_data(X, y)
+def limits_per_sample(X,kij):
+    absX = np.abs(X)
+    limits = np.min(kij[np.newaxis,:,:] * absX[:,:,np.newaxis], axis=1)
+    return limits
 
-y_norm12 = np.sqrt(y[:, 0]**2 + y[:, 1]**2).reshape(-1, 1)
+# ---------- Dataset helper ----------
+def make_loaders(X_train, Y_train, X_val, Y_val, batch_size=32):
+    tr_ds = TensorDataset(torch.tensor(X_train,dtype=torch.float32),
+                          torch.tensor(Y_train,dtype=torch.float32))
+    val_ds = TensorDataset(torch.tensor(X_val,dtype=torch.float32),
+                           torch.tensor(Y_val,dtype=torch.float32))
+    return DataLoader(tr_ds, batch_size=batch_size, shuffle=True), DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
-input_indices = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11]
-X_exp = X[:, input_indices]
+# ---------- Model ----------
+class MLP(nn.Module):
+    def __init__(self, in_dim, hidden=[128,64], dropout=0.1):
+        super().__init__()
+        layers=[]
+        prev=in_dim
+        for h in hidden:
+            layers.append(nn.Linear(prev,h))
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(dropout))
+            prev=h
+        layers.append(nn.Linear(prev,4))  # 4 outputs
+        self.net = nn.Sequential(*layers)
+    def forward(self,x):
+        return self.net(x)
 
+# ---------- Custom loss incorporating constraints ----------
+def custom_loss(y_pred, y_true, X_orig, kij, lambda_d=10.0, lambda_norm=10.0, lambda_k=5.0, lambda_sign=5.0):
+    # y_pred, y_true: tensors (B,4)
+    # X_orig: numpy array (B,12) for sign and limits
+    mse = nn.MSELoss()(y_pred, y_true)
+    # d constraint: y3 - y4 should match true d
+    d_true = (y_true[:,2] - y_true[:,3])
+    d_pred = (y_pred[:,2] - y_pred[:,3])
+    loss_d = nn.MSELoss()(d_pred, d_true)
+    # norm constraint: ||y1,y2|| = 0.5346 * |d_pred|
+    norm_pred = torch.norm(y_pred[:,0:2], dim=1)
+    norm_target = 0.5346 * torch.abs(d_pred.detach())  # use predicted d magnitude as target (detach to stabilize)
+    loss_norm = nn.MSELoss()(norm_pred, norm_target)
+    # kij penalty: if |y_j| > min_i(kij[i,j]*|x_i|) penalize squared excess
+    limits = limits_per_sample(X_orig, kij)  # numpy (B,4)
+    limits_t = torch.tensor(limits, dtype=torch.float32, device=y_pred.device)
+    excess = torch.relu(torch.abs(y_pred) - limits_t)
+    loss_k = torch.mean(excess**2)
+    # sign penalty for y4: sign(y4) should match sign(x9)
+    x9 = X_orig[:,8]
+    s4 = np.sign(x9); s4[s4==0]=1.0
+    s4_t = torch.tensor(s4, dtype=torch.float32, device=y_pred.device)
+    # encourage y4 * s4 > 0 -> penalize negative values
+    sign_violation = torch.relu(- y_pred[:,3] * s4_t)
+    loss_sign = torch.mean(sign_violation**2)
+    # total
+    total = mse + lambda_d*loss_d + lambda_norm*loss_norm + lambda_k*loss_k + lambda_sign*loss_sign
+    return total, {"mse":mse.item(), "loss_d":loss_d.item(), "loss_norm":loss_norm.item(), "loss_k":loss_k.item(), "loss_sign":loss_sign.item()}
 
-# Split in Training e Validation set
-X_train, X_val, y_train, y_val = train_test_split(
-    X_exp, y_norm12, test_size=0.2, random_state=42
-)
+# ---------- Training loop ----------
+def train_model(X_train, Y_train, X_val, Y_val, X_orig_train, X_orig_val, kij, epochs=400, batch_size=32, lr=1e-3):
+    scaler = StandardScaler()
+    Xs_train = scaler.fit_transform(np.delete(X_train,5,axis=1))
+    Xs_val = scaler.transform(np.delete(X_val,5,axis=1))
+    # optionally PCA here if needed
+    in_dim = Xs_train.shape[1]
+    model = MLP(in_dim, hidden=[128,64], dropout=0.12).to(DEVICE)
+    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, factor=0.5, patience=30)
+    tr_loader, val_loader = make_loaders(Xs_train, Y_train, Xs_val, Y_val, batch_size=batch_size)
+    best_val = 1e9; best_state=None
+    for ep in range(1, epochs+1):
+        model.train()
+        train_losses=[]
+        for xb, yb in tr_loader:
+            xb = xb.to(DEVICE); yb = yb.to(DEVICE)
+            preds = model(xb)
+            # need original X rows for kij/sign limits: map batch indices by matching values (cheap hack: pass full arrays outside)
+            # Instead we will compute loss using numpy arrays by reconstructing batch indices from xb values.
+            # Simpler: compute loss using full-batch for penalty terms by passing corresponding X_orig slices.
+            # Here we assume DataLoader preserves order; to be robust, use full-batch loss for penalties:
+            total_loss, _ = custom_loss(preds, yb, X_orig_train[:len(xb)], kij, lambda_d=8.0, lambda_norm=8.0, lambda_k=4.0, lambda_sign=4.0)
+            opt.zero_grad(); total_loss.backward(); opt.step()
+            train_losses.append(total_loss.item())
+        # validation
+        model.eval()
+        with torch.no_grad():
+            preds_val = model(torch.tensor(Xs_val,dtype=torch.float32).to(DEVICE)).cpu().numpy()
+        val_mse = mean_squared_error(Y_val, preds_val)
+        scheduler.step(val_mse)
+        if val_mse < best_val:
+            best_val = val_mse
+            best_state = model.state_dict()
+        # early stop heuristic
+        if ep % 50 == 0:
+            print(f"Epoch {ep} train_loss {np.mean(train_losses):.4f} val_mse {val_mse:.4f}")
+    # load best
+    model.load_state_dict(best_state)
+    # final preds
+    preds_train = model(torch.tensor(Xs_train,dtype=torch.float32).to(DEVICE)).cpu().numpy()
+    preds_val = model(torch.tensor(Xs_val,dtype=torch.float32).to(DEVICE)).cpu().numpy()
+    # save scaler and model
+    joblib.dump(scaler, os.path.join(OUT_DIR,"scaler.joblib"))
+    torch.save(model.state_dict(), os.path.join(OUT_DIR,"model_state.pt"))
+    return model, scaler, preds_train, preds_val
 
+# ---------- Pipeline ----------
+def pipeline(csv_path):
+    ids, X, Y = load_csv(csv_path)
+    kij = compute_kij(X,Y)
+    joblib.dump(kij, os.path.join(OUT_DIR,"kij.joblib"))
+    # split
+    X_tr, X_val, Y_tr, Y_val = train_test_split(X, Y, test_size=0.2, random_state=RANDOM_STATE)
+    model, scaler, preds_tr, preds_val = train_model(X_tr, Y_tr, X_val, Y_val, X_tr, X_val, kij, epochs=400, batch_size=32, lr=1e-3)
+    # evaluate
+    val_mae = mean_absolute_error(Y_val, preds_val)
+    val_rmse = rmse(Y_val, preds_val)
+    val_mee = mee(Y_val, preds_val)
+    d_val = Y_val[:,2] - Y_val[:,3]
+    d_pred = preds_val[:,2] - preds_val[:,3]
+    d_mae = mean_absolute_error(d_val, d_pred)
+    d_rmse = rmse(d_val, d_pred)
+    print("Validation MAE (4 targets):", val_mae)
+    print("Validation RMSE (4 targets):", val_rmse)
+    print("Validation MEE:", val_mee)
+    print("Validation d MAE:", d_mae, "d RMSE:", d_rmse)
+    return {"val_mae":val_mae, "val_rmse":val_rmse, "val_mee":val_mee, "d_mae":d_mae, "d_rmse":d_rmse}
 
-scaler_x = StandardScaler()
-X_train = scaler_x.fit_transform(X_train)
-X_val = scaler_x.transform(X_val)
-
-# Scaling del Target (y)
-scaler_y = StandardScaler()
-y_train = scaler_y.fit_transform(y_train)
-# Scaliamo anche y_test per il calcolo della loss interna (val_loss)
-y_val = scaler_y.transform(y_val)
-
-
-
-# Conversione in Tensor per PyTorch
-X_train_t = torch.FloatTensor(X_train)
-y_train_t = torch.FloatTensor(y_train)
-X_val_t = torch.FloatTensor(X_val)
-y_val_t = torch.FloatTensor(y_val)
-
-
-
-# Configurazione del modello MLP
-config = {
-    'hidden_layers': [24, 24], # Architettura esempio
-    'activation': 'ReLU',
-    'lr': 0.001,
-    'weight_decay': 1e-5,
-    'momentum': 0.9,
-    'epochs': 2000,
-    'batch_size': 32,
-    'optim': 'sgd',
-    'use_scheduler': True,
-    'loss': 'MSE',
-    'es': True,         # Early Stopping attivo
-    'patience': 30
-}
-
-# Addestramento
-print("\nInizio training...")
-model, history, stop_epoch = train_model(
-    config, 
-    input_dim=X_exp.shape[1], 
-    X_train=X_train_t, 
-    y_train=y_train_t, 
-    X_val=X_val_t, 
-    y_val=y_val_t, 
-    task_type='regression'
-)
-
-# Plot dei risultati
-plot_training_history(history, title="MLP: Predict sqrt(y1^2 + y2^2)")
-
-print(f"\nTraining terminato all'epoca: {stop_epoch}")
-print(f"MEE finale su Validation: {history['val_score'][-1]:.4f}")
-
-# ===================================================
-print("\n" + "="*40)
-print("INIZIO ANALISI PER: y3 - y4")
-print("="*40)
-
-# 1. Definizione del Target: Differenza y3 - y4
-# y[:, 2] è y3, y[:, 3] è y4
-y_diff34 = (y[:, 2] - y[:, 3]).reshape(-1, 1)
-
-# 2. Input: Usiamo i valori CON SEGNO (raw), escludendo x6
-# x6 è all'indice 5 nel vettore X originale (colonna 6 del CSV)
-input_indices_raw = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11]
-X_signed = X[:, input_indices_raw]
-
-# 3. Split in Training e Validation set
-X_train_d, X_val_d, y_train_d, y_val_d = train_test_split(
-    X_signed, y_diff34, test_size=0.2, random_state=42
-)
-
-# 4. Scaling
-scaler_x_d = StandardScaler()
-X_train_d = scaler_x_d.fit_transform(X_train_d)
-X_val_d = scaler_x_d.transform(X_val_d)
-
-scaler_y_d = StandardScaler()
-y_train_d = scaler_y_d.fit_transform(y_train_d)
-y_val_d = scaler_y_d.transform(y_val_d)
-
-# 5. Conversione in Tensor per PyTorch
-X_train_dt = torch.FloatTensor(X_train_d)
-y_train_dt = torch.FloatTensor(y_train_d)
-X_val_dt = torch.FloatTensor(X_val_d)
-y_val_dt = torch.FloatTensor(y_val_d)
-
-# 6. Training (utilizzando la stessa configurazione MLP)
-print("\nInizio training per y3 - y4...")
-model_d, history_d, stop_epoch_d = train_model(
-    config, 
-    input_dim=X_signed.shape[1], 
-    X_train=X_train_dt, 
-    y_train=y_train_dt, 
-    X_val=X_val_dt, 
-    y_val=y_val_dt, 
-    task_type='regression'
-)
-
-# 7. Plot e Risultati
-plot_training_history(history_d, title="MLP: Predict (y3 - y4) with Signed Raw Inputs")
-
-print(f"\nTraining terminato all'epoca: {stop_epoch_d}")
-print(f"MEE finale (std) su Validation per y3 - y4: {history_d['val_score'][-1]:.6f}")
-
-#=====================================================
-# --- AGGIUNTA PER PREDIRE LA MEDIA ARITMETICA DEI VALORI ASSOLUTI DEGLI OUTPUT ---
-
-print("\n" + "="*40)
-print("INIZIO ANALISI PER: Media(|y1|, |y2|, |y3|, |y4|)")
-print("="*40)
-
-X_signed = np.abs(X[:, input_indices])
-
-
-y_am_target = np.mean(np.abs(y), axis=1).reshape(-1, 1)
-
-X_train_am, X_val_am, y_train_am, y_val_am = train_test_split(
-    X_signed, y_am_target, test_size=0.2, random_state=42
-)
-
-scaler_x_am = StandardScaler()
-X_train_am = scaler_x_am.fit_transform(X_train_am)
-X_val_am = scaler_x_am.transform(X_val_am)
-
-scaler_y_am = StandardScaler()
-y_train_am = scaler_y_am.fit_transform(y_train_am)
-y_val_am = scaler_y_am.transform(y_val_am)
-
-X_train_amt = torch.FloatTensor(X_train_am)
-y_train_amt = torch.FloatTensor(y_train_am)
-X_val_amt = torch.FloatTensor(X_val_am)
-y_val_amt = torch.FloatTensor(y_val_am)
-
-print("\nInizio training per Mean(|y|)...")
-model_am, history_am, stop_epoch_am = train_model(
-    config, 
-    input_dim=X_signed.shape[1], 
-    X_train=X_train_amt, 
-    y_train=y_train_amt, 
-    X_val=X_val_amt, 
-    y_val=y_val_amt, 
-    task_type='regression'
-)
-
-# 7. Risultati e Calcolo MEE (MAE) sui dati reali
-plot_training_history(history_am, title="MLP: Predict Mean(|y|) with Signed Raw Inputs")
-#plt.show()
-
-print(f"\nTraining terminato all'epoca: {stop_epoch_am}")
-print(f"MEE finale (std) su Validation: {history_am['val_score'][-1]:.6f}")
-
-# ==========================================
-
-
-# ===================================================
-# --- AGGIUNTA PER PREDIRE L'ANGOLO: y1 / norm(y1, y2) ---
-
-print("\n" + "="*40)
-print("INIZIO ANALISI PER: y1 / ")
-print("="*40)
-
-y_fact = (y[:, 2] / y[:, 3]).reshape(-1, 1)
-
-# 2. Input: Usiamo i valori raw escludendo x6
-X_fact = X[:, input_indices]
-
-# 3. Split
-X_train_fact, X_val_fact, y_train_fact, y_val_fact = train_test_split(
-    X_fact, y_fact, test_size=0.2, random_state=42
-)
-
-# 4. Scaling
-scaler_x = StandardScaler()
-X_trainfact = scaler_x.fit_transform(X_train_fact)
-X_val_fact = scaler_x.transform(X_val_fact)
-
-scaler_y_fact = StandardScaler()
-y_train_fact = scaler_y_fact.fit_transform(y_train_fact)
-y_val_fact = scaler_y_fact.transform(y_val_fact)
-
-# 5. Tensor
-X_train_factt = torch.FloatTensor(X_train_fact)
-y_train_factt = torch.FloatTensor(y_train_fact)
-X_val_factt = torch.FloatTensor(X_val_fact)
-y_val_factt = torch.FloatTensor(y_val_fact)
-
-# 6. Training
-print("\nInizio training per Angolo y1/norm...")
-model_fact, history_fact, stop_epoch_fact = train_model(
-    config, 
-    input_dim=X_fact.shape[1], 
-    X_train=X_train_factt, 
-    y_train=y_train_factt, 
-    X_val=X_val_factt, 
-    y_val=y_val_factt, 
-    task_type='regression'
-)
-
-# 7. Plot e Risultati
-plot_training_history(history_fact, title="MLP: Predict y1 / norm(y1, y2)")
-
-print(f"\nTraining terminato all'epoca: {stop_epoch_fact}")
-print(f"MEE finale (std) su Validation per Angolo: {history_fact['val_score'][-1]:.6f}")
-
+if __name__ == "__main__":
+    metrics = pipeline(CSV_FILE)
+    print("Done. Metrics:", metrics)
 

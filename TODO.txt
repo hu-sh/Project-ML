@@ -2,8 +2,12 @@ cose importanti:
 grafico y3-y4 vs norm(y1,y2) (ci farai semplice linear regressor)
 grafico y3-y4 vs media x_i (meno x_6) (ok mlp o svr)
 
+dato che le var di input sono altamente correlate tra loro, linreg va un po peggio a predirre y3-y4 quindi meglio usare un mlp(anche senza hidden layer)
+
+
 e così abbiamo errore bassissimo su ste due
 
 
 idea: se finisci a dover guardare segni, rendi tutto binario (in base al segno) e prova a vedere se ci sono relazioni binarie
-
+idea: fare linspace search su il +- 0.5 dei valori predetti di  y1, y2 da altri modelli e si cerca di far matchare la norma che la sappiamo bene
+idea: sappiamo avg(abs(y_j)) e sappiamo y_3 - y_4. quindi abs(y1)+abs(y2) = avg(abs(y_j)) - abs(y3-y4)

@@ -125,7 +125,10 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None, tas
         if loss_type == 'Huber':
             # Delta=1.0 è standard, ma modificabile se serve
             criterion = nn.HuberLoss(delta=1.0)
-    
+    if task_type == 'classification':
+        if loss_type == 'BCE':
+            criterion = nn.BCELoss()
+
     # Optimizer
     if optim_model == 'sgd':
         optimizer = optim.SGD(model.parameters(), momentum=mom, lr=lr, weight_decay=wd)
