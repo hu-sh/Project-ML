@@ -1,4 +1,3 @@
-import itertools
 import pandas as pd
 import torch
 import numpy as np
@@ -22,31 +21,16 @@ scaler_y = StandardScaler()
 y_cup = scaler_y.fit_transform(y_cup)
 
 # ==========================================
-# 2. DEFINIZIONE GRIGLIA IPERPARAMETRI
+# 2. CONFIG FISSE PER TARGET
 # ==========================================
-# Modifica questa griglia per esplorare diverse combinazioni.
-# Ricorda: più opzioni metti, più tempo ci vorrà!
-param_grid = {
-    'hidden_layers': [
-        [128, 512, 256, 128],   
-        [128,  256, 128]
-    ],
-    'activation': ['ELU', 'LeakyReLU'],
-    'lr': [0.005, 0.001], 
-    'weight_decay': [1e-4], 
-    'dropout': [0.0, 0.1],  
-    'batch_size': [64],
-    'epochs': [800],        
-    'es': [True],           
-    'patience': [50],       
-    'loss': ['Huber', 'MSE'],
-    'use_scheduler': [True],
-    'momentum': [0.9]
+configs = {
+    0: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.005, 'dropout': 0.1, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
+    1: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.005, 'dropout': 0.1, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
+    2: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.001, 'dropout': 0.1, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
+    3: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.005, 'dropout': 0.2, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
 }
 
-# Generazione di tutte le combinazioni
-keys, values = zip(*param_grid.items())
-combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+combinations = list(configs.values())
 
 print(f"Totale combinazioni da testare per OGNI target: {len(combinations)}")
 print("-" * 60)

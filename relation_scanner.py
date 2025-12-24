@@ -41,16 +41,20 @@ def build_features(arr: np.ndarray, prefix: str) -> FeatureDict:
         feats[f"abs_{prefix}_{i+1}"] = np.abs(arr[:, i])
         feats[f"sign_{prefix}_{i+1}"] = np.sign(arr[:, i])
         feats[f"square_{prefix}_{i+1}"] = arr[:, i] ** 2
+        feats[f"sqrtabs_{prefix}_{i+1}"] = abs(arr[:, i]) ** 0.5
+        feats[f"logabs_{prefix}_{i+1}"] = np.log(np.abs(arr[:, i]) + 1e-12)
     # Aggregates across all variables
     eps = 1e-12
     geom_all = np.exp(np.mean(np.log(np.abs(arr) + eps), axis=1))
     mean_abs_all = np.mean(np.abs(arr), axis=1)
     l2_all = np.linalg.norm(arr, axis=1)
     max_abs_all = np.max(np.abs(arr), axis=1)
+    std_abs_all = np.std(np.abs(arr), axis=1)
     feats[f"geom_all_{prefix}"] = geom_all
     feats[f"meanabs_all_{prefix}"] = mean_abs_all
     feats[f"l2_all_{prefix}"] = l2_all
     feats[f"maxabs_all_{prefix}"] = max_abs_all
+    feats[f"stdabs_all_{prefix}"] = std_abs_all
     # Aggregates excluding x_6 (only for inputs)
     if prefix == "input" and arr.shape[1] >= 6:
         mask = np.ones(arr.shape[1], dtype=bool)
@@ -66,12 +70,19 @@ def build_features(arr: np.ndarray, prefix: str) -> FeatureDict:
         pfx = f"{prefix}_{i+1}_{j+1}"
         a_i, a_j = arr[:, i], arr[:, j]
         feats[f"prod_{pfx}"] = a_i * a_j
+        feats[f"absprod_{pfx}"] = abs(a_i * a_j)
         feats[f"sum_{pfx}"] = a_i + a_j
         feats[f"diff_{pfx}"] = a_i - a_j
+        feats[f"abssum_{pfx}"] = abs(a_i + a_j)
+        feats[f"absdiff_{pfx}"] = abs(a_i - a_j)
         feats[f"radius_{pfx}"] = np.hypot(a_i, a_j)
         feats[f"angle_{pfx}"] = np.arctan2(a_j, a_i)
         feats[f"geom_{pfx}"] = np.sqrt(abs(a_i * a_j))
         feats[f"ratio_{pfx}"] = a_i / (a_j + eps)
+        feats[f"ratio_inv_{pfx}"] = a_j / (a_i + eps)
+        feats[f"maxabs2_{pfx}"] = np.maximum(np.abs(a_i), np.abs(a_j))
+        feats[f"minabs2_{pfx}"] = np.minimum(np.abs(a_i), np.abs(a_j))
+        feats[f"normdiff_{pfx}"] = (a_i - a_j) / (a_i + a_j)
 
     """
     # Triple-wise aggregates (sum, product, L2 norm, geometric mean, mean abs)
@@ -103,11 +114,19 @@ def compute_near_equalities(
     records: List[Dict[str, float]] = []
     small_thr, medium_thr = thresholds
 
+    def _match_base(base_t: str, base_x: str) -> bool:
+        if base_t == base_x:
+            return True
+        # Allow radius vs absdiff cross-family comparisons
+        if (base_t == "radius" and base_x == "absdiff") or (base_t == "absdiff" and base_x == "radius"):
+            return True
+        return False
+
     for name_t, vals_t in targets.items():
         base_name = name_t.split("_", 1)[0]
-        # Compare only features with the same operation type (prod, sum, diff, radius, angle)
         for name_x, vals_x in inputs.items():
-            if not name_x.startswith(base_name):
+            base_x = name_x.split("_", 1)[0]
+            if not _match_base(base_name, base_x):
                 continue
             if base_name == "angle":
                 residual = angle_residual(vals_t, vals_x)
@@ -154,7 +173,8 @@ def compute_near_equalities(
     for idx_t, (name_t, vals_t) in enumerate(target_items):
         base_name = name_t.split("_", 1)[0]
         for name_u, vals_u in target_items[idx_t + 1 :]:
-            if not name_u.startswith(base_name):
+            base_u = name_u.split("_", 1)[0]
+            if not _match_base(base_name, base_u):
                 continue
             if base_name == "angle":
                 residual = angle_residual(vals_t, vals_u)
