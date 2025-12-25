@@ -13,9 +13,9 @@ from sklearn.preprocessing import StandardScaler, PowerTransformer
 FILE_PATH = 'data/CUP/ML-CUP25-TR.csv'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BATCH_SIZE = 64
-EPOCHS = 1500  # Più epoche perché il LR è più basso per stabilità
-LR = 5e-4      # Learning rate più conservativo
-PATIENCE = 200
+EPOCHS = 15000  # Più epoche perché il LR è più basso per stabilità
+LR = 5      # Learning rate più conservativo
+PATIENCE = 2000
 
 # ==========================================
 # 2. DATA LOADING
@@ -140,7 +140,7 @@ if __name__ == "__main__":
             
             # 2. Loss Ausiliaria (Fisica)
             # Forza il neurone centrale a comportarsi come y3-y4
-            loss_diff = criterion_aux(latent_pred, b_diff)
+            loss_diff = 0#criterion_aux(latent_pred, b_diff)
             
             # Somma pesata
             loss = loss_y + (0.5 * loss_diff)
@@ -176,12 +176,13 @@ if __name__ == "__main__":
                 
                 y3 = y4 + diff_pred_real
                 
-                pred_full = np.column_stack((y1, y2, y3, y4))
-                err = np.linalg.norm(pred_full - by_full_real.numpy(), axis=1).mean()
+                pred_full = np.column_stack((y1, y2, y4))
+                err = np.linalg.norm(pred_full[:,[0,1,2]] - by_full_real.numpy()[:,[0,1,3]], axis=1).mean()
                 mee_sum += err * bx.size(0)
                 count += bx.size(0)
                 
         val_mee = mee_sum / count
+        print("mee: ", val_mee)
         val_diff_mse = diff_error_sum / count
         
         scheduler.step(val_mee)

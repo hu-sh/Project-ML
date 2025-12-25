@@ -47,7 +47,7 @@ def main():
     # Parametri aggressivi per scendere sotto MEE 1.0
     # Usiamo Dropout e Scheduler per gestire reti grandi e deep.
     configs = [
-            {'hidden_layers': [128, 512, 256, 128], 
+            {'hidden_layers': [ 1,  128], 
              'activation': 'LeakyReLU', 
              'lr': 0.005, 
              'weight_decay': 0.0001, 
@@ -59,7 +59,7 @@ def main():
              'loss': 'MSE', 
              'use_scheduler': True, 
              'momentum': 0.9},
-             {'hidden_layers': [128, 256, 128], 
+             {'hidden_layers': [ 1, 128], 
               'activation': 'LeakyReLU', 
               'lr': 0.005, 
               'weight_decay': 0.0001, 
@@ -71,7 +71,7 @@ def main():
               'loss': 'MSE', 
               'use_scheduler': True, 
               'momentum': 0.9},
-             {'hidden_layers': [128, 256, 128], 
+             {'hidden_layers': [ 1, 128], 
               'activation': 'LeakyReLU', 
               'lr': 0.001, 
               'weight_decay': 0.0001, 
@@ -83,7 +83,7 @@ def main():
               'loss': 'MSE', 
               'use_scheduler': True, 
               'momentum': 0.9},
-             {'hidden_layers': [128, 512, 256, 128], 
+             {'hidden_layers': [ 1, 128], 
               'activation': 'LeakyReLU', 
               'lr': 0.001, 
               'weight_decay': 0.0001, 

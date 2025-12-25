@@ -3,7 +3,7 @@ grafico y3-y4 vs norm(y1,y2) (ci farai semplice linear regressor) 0.5463
 grafico y3-y4 vs media x_i (meno x_6) (ok mlp o svr)
 
 con y3-y4 e (y3-y4)^2 si predice tutti gli altri con MEE 1.2
-
+però un errore di 1 su y3-y4 porta a disastri.. e sembra che non si riesca a diminuire..
 
 
 dato che le var di input sono altamente correlate tra loro, linreg va un po peggio a predirre y3-y4 quindi meglio usare un mlp(anche senza hidden layer)
