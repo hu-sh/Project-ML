@@ -136,7 +136,7 @@ X_vl_m3_t = to_tensor(X_vl_m3_std); y_vl_dir_t = to_tensor(y_vl_dir)
 
 config = {
     'hidden_layers': [24],
-    'activation': 'tanh',
+    'activation': 'sigmoid',
     'lr': 0.001, 
     'epochs': 1000, 
     'batch_size': 32, 
@@ -150,6 +150,8 @@ model_diff, hist_diff, _ = train_model(
     config, X_tr_std.shape[1], X_tr_t, y_tr_diff_t, X_vl_t, y_vl_diff_t
 )
 print(f"Valid MEE: {hist_diff['val_score'][-1]:.5f}")
+print(model_diff.cpu().net[0].weight)
+model_diff.to(device)
 
 print("\n--- Training Model 2: Mean Abs ---")
 config['hidden_layers'] = [12]

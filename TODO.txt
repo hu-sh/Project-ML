@@ -1,6 +1,10 @@
 cose importanti:
-grafico y3-y4 vs norm(y1,y2) (ci farai semplice linear regressor)
+grafico y3-y4 vs norm(y1,y2) (ci farai semplice linear regressor) 0.5463
 grafico y3-y4 vs media x_i (meno x_6) (ok mlp o svr)
+
+con y3-y4 e (y3-y4)^2 si predice tutti gli altri con MEE 1.2
+
+
 
 dato che le var di input sono altamente correlate tra loro, linreg va un po peggio a predirre y3-y4 quindi meglio usare un mlp(anche senza hidden layer)
 
@@ -11,3 +15,25 @@ e così abbiamo errore bassissimo su ste due
 idea: se finisci a dover guardare segni, rendi tutto binario (in base al segno) e prova a vedere se ci sono relazioni binarie
 idea: fare linspace search su il +- 0.5 dei valori predetti di  y1, y2 da altri modelli e si cerca di far matchare la norma che la sappiamo bene
 idea: sappiamo avg(abs(y_j)) e sappiamo y_3 - y_4. quindi abs(y1)+abs(y2) = avg(abs(y_j)) - abs(y3-y4)
+
+
+
+
+
+###################################################
+Input: x originale, y3-y4, avg(abs(y)) 
+ output: multi-output y1, y2, y4
+ loss: MSE + vincoli 
+
+i vincoli sono:
+abs(y_i) <= kij * abs(x_i) per ogni i diverso da 6 (i kij li calcoli come max(abs(y_j/x_i)) su abs(x_i)>5)
+sgn(y_3) = - sgn(y_4) = sgn(x_11)
+norm(y1, y2) = 0.5463*abs(y3-y4)
+abs(y1)+abs(y2) = 4*avg(abs(y_j)) - abs(y3-y4)
+
+si standardizza gli input. Standardizza ANCHE l'output Y (così la rete predice numeri facili tra -1 e 1).
+Nella Loss Function, DE-STANDARDIZZA (inverti la formula) per calcolare i vincoli fisici sui valori reali.
+
+il problema ha 12 input e 4 output, come vedi nel file.
+scrivimi il codice caricando i dati dal path "data/CUP/ML-CUP25-TR.csv".
+usa early stopping e printa MEE sulle 4 variabili ricavate. (early stopping lo devi fare sul mee sul validation set)
