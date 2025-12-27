@@ -5,6 +5,13 @@ grafico y3-y4 vs media x_i (meno x_6) (ok mlp o svr)
 con y3-y4 e (y3-y4)^2 si predice tutti gli altri con MEE 1.2
 però un errore di 1 su y3-y4 porta a disastri.. e sembra che non si riesca a diminuire..
 
+y1 = 0.5463 (y3-y4) cos(1.1395(y3-y4)) 
+e y2 simile
+
+y3+y4 = -(y3-y4) cos(2(y3-y4))
+
+sembra come se theta34 = pi/4 * [cost(theta12 + pi/2 * (-1)^eps1 * 2(eps_2) + 1] +(-1)^sgn(x_11) pi/2 con eps1,eps2 variabili binarie
+
 
 dato che le var di input sono altamente correlate tra loro, linreg va un po peggio a predirre y3-y4 quindi meglio usare un mlp(anche senza hidden layer)
 
@@ -15,7 +22,6 @@ e così abbiamo errore bassissimo su ste due
 idea: se finisci a dover guardare segni, rendi tutto binario (in base al segno) e prova a vedere se ci sono relazioni binarie
 idea: fare linspace search su il +- 0.5 dei valori predetti di  y1, y2 da altri modelli e si cerca di far matchare la norma che la sappiamo bene
 idea: sappiamo avg(abs(y_j)) e sappiamo y_3 - y_4. quindi abs(y1)+abs(y2) = avg(abs(y_j)) - abs(y3-y4)
-
 
 
 

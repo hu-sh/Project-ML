@@ -151,8 +151,8 @@ model_diff, hist_diff, _ = train_model(
     config, X_tr_std.shape[1], X_tr_t, y_tr_diff_t, X_vl_t, y_vl_diff_t
 )
 print(f"Valid MEE: {hist_diff['val_score'][-1]:.5f}")
-#print(model_diff.cpu().net[0].weight)
-#model_diff.to(device)
+print(model_diff.cpu().net[0].weight)
+model_diff.to(device)
 
 
 
@@ -165,89 +165,4 @@ model_mean, hist_mean, _ = train_model(
 print(f"Valid MEE: {hist_mean['val_score'][-1]:.5f}")
 
 
-# ==============================================================================
-# 6. TRAINING MODEL 4 (SOLVER) - Basato su cup_mlp_old
-# ==============================================================================
-from sklearn.preprocessing import PolynomialFeatures
-
-print("\n" + "="*50)
-print("FASE 3: ADDESTRAMENTO SOLVER SULLE PREDIZIONI DI M1")
-print("="*50)
-
-# --- A. Generazione Input: Predizioni di M1 (y3-y4) ---
-# Usiamo il modello appena addestrato per generare gli input "sporchi" per il solver
-model_diff.eval()
-with torch.no_grad():
-    # Otteniamo le predizioni per train e validation
-    y_tr_diff_pred = model_diff(X_tr_t).cpu().numpy()
-    y_vl_diff_pred = model_diff(X_vl_t).cpu().numpy()
-
-# --- B. Feature Engineering: Espansione Polinomiale ---
-# Come in cup_mlp_old, espandiamo la singola feature (la diff) in grado 2
-poly = PolynomialFeatures(degree=2, include_bias=False)
-X_tr_solver_poly = poly.fit_transform(y_tr_diff_pred)
-X_vl_solver_poly = poly.transform(y_vl_diff)
-
-# --- C. Scaling degli input polinomiali ---
-
-# --- D. Definizione Target: y1, y2, y4 ---
-# Il Solver impara a mappare la differenza verso gli altri 3 target
-y_tr_solver_target = y_train_raw[:, [0, 1, 3]]
-y_vl_solver_target = y_val_raw[:, [0, 1, 3]]
-
-# Conversione in Tensor per la tua libreria
-X_tr_solver_t = to_tensor(X_tr_solver_poly)
-y_tr_solver_t = to_tensor(y_tr_solver_target)
-X_vl_solver_t = to_tensor(X_vl_solver_poly)
-y_vl_solver_t = to_tensor(y_vl_solver_target)
-
-# --- E. Training con DynamicMLP ---
-# Configurazione che ricalca SolverNet usando i parametri di mlp.py
-config_solver = {
-    'hidden_layers': [256, 512, 256, 128], # Architettura profonda come in cup_mlp_old
-    'activation': 'ELU',     # ELU è ottima per la regressione smooth
-    'lr': 0.001,
-    'epochs': 2000,
-    'batch_size': 64,
-    'patience': 100,
-    'optim': 'adam',         # Adam per convergenza rapida
-    'loss': 'Huber',         # HuberLoss per gestire meglio l'errore delle predizioni
-    'es': True
-}
-
-print("\n--- Training Model 4: Solver (y3-y4_pred -> y1, y2, y4) ---")
-model_solver, hist_solver, stop_epoch_s = train_model(
-    config_solver, 
-    X_tr_solver_poly.shape[1], 
-    X_tr_solver_t, 
-    y_tr_solver_t, 
-    X_vl_solver_t, 
-    y_vl_solver_t
-)
-
-# --- F. Funzione di Ricostruzione Finale ---
-def get_final_targets(diff_preds, model_s, poly_s):
-    """
-    Data la predizione di y3-y4, calcola il vettore completo [y1, y2, y3, y4]
-    """
-    model_s.eval()
-    with torch.no_grad():
-        X_p = poly_s.transform(diff_preds)
-        X_s = X_p
-        X_t = to_tensor(X_s)
-        
-        # Predizione di y1, y2, y4
-        out = model_s(X_t).cpu().numpy()
-        y1, y2, y4 = out[:, 0], out[:, 1], out[:, 2]
-        
-        # Ricostruzione algebrica: y3 = y4 + (y3-y4)
-        y3 = y4 + diff_preds.flatten()
-        
-        return np.column_stack([y1, y2, y3, y4])
-
-# Valutazione finale sul Validation Set
-final_preds_vl = get_final_targets(y_vl_diff_pred, model_solver, poly)
-final_mee = np.mean(np.linalg.norm(final_preds_vl - y_val_raw, axis=1))
-
-print(f"\nVALIDATION MEE FINALE (Catena M1 + Solver): {final_mee:.5f}")
 
