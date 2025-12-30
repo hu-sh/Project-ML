@@ -1,87 +1,67 @@
-import pandas as pd
-import torch
 import numpy as np
+from sklearn.ensemble import GradientBoostingRegressor, BaggingRegressor
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from utils import *
+from mlp import grid_search_kfold_cv, average_histories 
 
-from utils import load_cup_data 
-# Importiamo la funzione di grid search dal tuo mlp.py aggiornato
-from mlp import grid_search_kfold_cv
+X_raw, y_raw = load_cup_data("data/CUP/ML-CUP25-TR.csv") 
 
-# ==========================================
-# 1. CARICAMENTO DATI
-# ==========================================
-print("Caricamento dati CUP...")
-X_cup, y_cup = load_cup_data('data/CUP/ML-CUP25-TR.csv')
+# --- 1. PREPARAZIONE TARGET d ---
+# Calcoliamo d (la differenza) che è il nostro unico grado di libertà
+d_raw = y_raw[:, 2] - y_raw[:, 3] 
 
-# Preprocessing standard
-scaler_x = StandardScaler()
-X_cup = scaler_x.fit_transform(X_cup)
+X_train, X_test, d_train, d_test, y_train_full, y_test_full = train_test_split(
+    X_raw, d_raw, y_raw, test_size=0.2, random_state=42
+)
 
-scaler_y = StandardScaler()
-y_cup = scaler_y.fit_transform(y_cup)
+# --- 2. ENSEMBLE DI 10 GBRT ---
+# Definiamo il GBRT base con parametri robusti
+base_gbrt = GradientBoostingRegressor(
+    n_estimators=200,    # numero di alberi per ogni GBRT
+    learning_rate=0.1,
+    max_depth=5,         # profondità per catturare non-linearità
+    min_samples_split=5,
+    random_state=42
+)
 
-# ==========================================
-# 2. CONFIG FISSE PER TARGET
-# ==========================================
-configs = {
-    0: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.005, 'dropout': 0.1, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
-    1: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.005, 'dropout': 0.1, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
-    2: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.001, 'dropout': 0.1, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
-    3: {'hidden_layers': [512, 256, 128], 'activation': 'LeakyReLU', 'lr': 0.005, 'dropout': 0.2, 'loss': 'MSE', 'weight_decay': 0.0001, 'epochs': 600, 'batch_size': 64, 'es': True, 'patience': 40, 'use_scheduler': True},
-}
+# Creiamo l'ensemble di 10 modelli (Bagging)
+ensemble_model = BaggingRegressor(
+    estimator=base_gbrt,
+    n_estimators=10,     # numero di GBRT nell'ensemble
+    max_samples=0.8,     # ogni modello vede l'80% dei dati
+    n_jobs=-1,           # usa tutti i core della CPU
+    random_state=42
+)
 
-combinations = list(configs.values())
+print("Addestramento ensemble in corso...")
+ensemble_model.fit(X_train, d_train)
 
-print(f"Totale combinazioni da testare per OGNI target: {len(combinations)}")
-print("-" * 60)
+# --- 3. PREDIZIONE DI d ---
+d_pred = ensemble_model.predict(X_test)
 
-# ==========================================
-# 3. GRID SEARCH COMPONENTE PER COMPONENTE
-# ==========================================
-num_targets = y_cup.shape[1]
-best_configs_per_target = []
-
-for i in range(num_targets):
-    print(f"\n🔵 INIZIO GRID SEARCH - TARGET {i+1} / {num_targets}")
-    print("=" * 60)
+# --- 4. RICOSTRUZIONE ANALITICA DI y1, y2, y3, y4 ---
+# Usiamo le tue formule per "forzare" la geometria corretta
+def reconstruct_targets(d):
+    # y1 = 0.5463 * d * cos(1.1395 * d)
+    y1_rec = 0.5463 * d * np.cos(1.1395 * d)
+    # y2 = 0.5463 * d * sin(1.1395 * d)
+    y2_rec = 0.5463 * d * np.sin(1.1395 * d)
+    # y3 + y4 = -d * cos(2 * d) -> Sappiamo anche d = y3 - y4
+    # Risolvendo il sistema:
+    # y3 = ( (y3+y4) + (y3-y4) ) / 2
+    # y4 = ( (y3+y4) - (y3-y4) ) / 2
+    sum_y3y4 = -d * np.cos(2 * d)
+    y3_rec = (sum_y3y4 + d) / 2
+    y4_rec = (sum_y3y4 - d) / 2
     
-    # Seleziona solo la colonna i-esima (mantieni 2D shape: N, 1)
-    y_single = y_cup[:, i:i+1]
-    
-    # Lancia la Grid Search (5-Fold CV)
-    # Nota: Task type 'regression' userà automaticamente il MEE (che su 1D è MAE/Euclidean)
-    best_config, best_histories, best_avg_stop, all_results = grid_search_kfold_cv(
-        combinations,
-        k_folds=5,           # 5-Fold Cross Validation è robusta
-        X=X_cup, 
-        y=y_single,             
-        task_type='regression'
-    )
-    
-    # Trova il miglior score medio ottenuto
-    best_val_score = min([res['mean_val_score'] for res in all_results] 
-                         if 'mean_val_score' in all_results[0] else [0]) 
-    
-    # Se grid_search_kfold_cv stampa già, ottimo. Altrimenti recuperiamo qui.
-    # (Il tuo mlp.py stampa durante l'esecuzione, quindi vedrai i log)
-    
-    print(f"\n🏆 VINCITORE TARGET {i+1}")
-    print(f"Configurazione Migliore: {best_config}")
-    # Nota: best_avg_stop ti dice a che epoca si è fermato in media (utile per settare epochs nell'ensemble)
-    print(f"Stop Epoch Medio: {best_avg_stop:.1f}")
-    
-    best_configs_per_target.append(best_config)
-    print("-" * 60)
+    return np.column_stack([y1_rec, y2_rec, y3_rec, y4_rec])
 
-# ==========================================
-# 4. RIEPILOGO FINALE DA COPIARE
-# ==========================================
-print("\n\n" + "="*60)
-print("RIEPILOGO CONFIGURAZIONI VINCENTI (Da copiare in cup_mlp.py)")
-print("="*60)
+y_pred_final = reconstruct_targets(d_pred)
 
-for idx, conf in enumerate(best_configs_per_target):
-    print(f"\n# Target {idx+1}")
-    print(f"Config: {conf}")
+# --- 5. CALCOLO MEE ---
+def calculate_mee(y_true, y_pred):
+    return np.mean(np.linalg.norm(y_true - y_pred, axis=1))
 
-print("\nCopia questi dizionari o i valori chiave (hidden_layers, lr, dropout) nello script 'cup_mlp.py' per l'Ensemble.")
+mee_val = calculate_mee(y_test_full, y_pred_final)
+print(f"MEE Finale con Ensemble di GBRT: {mee_val:.4f}")

@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import KFold
+from sklearn.preprocessing import StandardScaler
 from utils import load_monk_data, get_encoder
 import numpy as np
 import matplotlib.pyplot as plt
@@ -111,7 +112,6 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None, tas
         y_val = y_val.to(device)
 
     output_dim = y_train.shape[1] if len(y_train.shape) > 1 else 1
-
     # Istanzia modello con Dropout
     model = DynamicMLP(input_dim, h_layers, act_fn, output_size=output_dim, dropout_rate=dropout, task_type=task_type)
     model.to(device)
@@ -231,7 +231,7 @@ def train_model(config, input_dim, X_train, y_train, X_val=None, y_val=None, tas
     return model, history, stop_epoch
 
 
-def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression'):
+def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression', standardize=False):
     best_score = float('inf') if task_type=='regression' else -1
     best_config = {}
     best_histories = {}  
@@ -253,6 +253,14 @@ def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression'):
             y_train_fold = y[train_idx]
             X_val_fold = X[val_idx]
             y_val_fold = y[val_idx]
+
+            if standardize:
+                x_tr_scaler = StandardScaler()
+                X_train_fold = x_tr_scaler.fit_transform(X_train_fold)
+
+                x_vl_scaler = StandardScaler()
+                X_val_fold =x_vl_scaler.fit_transform(X_vl_fold)
+
             
             X_tr_t = torch.FloatTensor(X_train_fold)
             y_tr_t = torch.FloatTensor(y_train_fold)
