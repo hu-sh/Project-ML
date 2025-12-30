@@ -2,3 +2,4 @@ data/Sklearn_Lectures
 data/Torch_Lectures
 __pycache__
 .venv
+plots/
