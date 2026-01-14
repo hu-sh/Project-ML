@@ -20,7 +20,9 @@ N_PCA_COMPONENTS = 5
 K_NEIGHBORS = 2
 RIDGE_ALPHA = 0.0000001
 LAMBDA_SWEEP = [0.01, 0.02, 0.05, 0.08, 0.1, 0.12, 0.15, 0.2, 0.3, 0.5]
-GAMMA = 1.0
+GAMMA = 0.4
+PC_INTERCEPT = -7.4426
+PC_BETAS = np.array([-10.9003, 2.6545])
 
 
 def _parse_fit(path):
@@ -165,33 +167,54 @@ def main():
 
     z_pred_val = np.array(z_pred_val).flatten()
 
-    # MEE for individual methods
-    Y_est = _reconstruct_y(z_est)
-    Y_pred = _reconstruct_y(z_pred_val)
-    mee_est = np.mean(np.linalg.norm(Y_est - Y_val, axis=1))
-    mee_pred = np.mean(np.linalg.norm(Y_pred - Y_val, axis=1))
-    print(f"MEE z_est: {mee_est:.5f}")
-    print(f"MEE z_pred_val: {mee_pred:.5f}")
-
-    # pc2 for refinement
+    # pc1/pc2 for linear PC model + pc2 for refinement
     pca2 = PCA(n_components=2, random_state=0)
     X_train_pca2 = pca2.fit_transform(X_train_sc)
     X_val_pca2 = pca2.transform(X_val_sc)
     pc2_val = X_val_pca2[:, 1]
+    pc_val = X_val_pca2[:, :2]
+    z_pred_pc = PC_INTERCEPT + pc_val @ PC_BETAS
 
     T, const, terms = _parse_fit(FIT_PATH)
     z_min = float(z.min())
     z_max = float(z.max())
 
+    # Refine z_pred_val -> z_ref
+    best = None
+    for lam in LAMBDA_SWEEP:
+        z_ref = np.array(
+            [
+                _refine_z_reg(z0, pc2, T, const, terms, z_min, z_max, lam)
+                for z0, pc2 in zip(z_pred_val, pc2_val)
+            ]
+        )
+        Y_pred = _reconstruct_y(z_ref)
+        mee = np.mean(np.linalg.norm(Y_pred - Y_val, axis=1))
+        if best is None or mee < best[0]:
+            best = (mee, lam, z_ref)
+
+    best_mee, best_lam, z_ref = best
+    print(f"Best lambda (MEE): {best_lam} -> MEE: {best_mee:.5f}")
+
+    # MEE for individual methods
+    Y_est = _reconstruct_y(z_est)
+    Y_ref = _reconstruct_y(z_ref)
+    mee_est = np.mean(np.linalg.norm(Y_est - Y_val, axis=1))
+    mee_ref = np.mean(np.linalg.norm(Y_ref - Y_val, axis=1))
+    print(f"MEE z_est: {mee_est:.5f}")
+    print(f"MEE z_ref: {mee_ref:.5f}")
+
     # Ensemble rule: average if close, else random pick
-    rng = np.random.default_rng()
     z_ens = np.empty_like(z_est)
-    close_mask = np.abs(z_pred_val - z_est) < GAMMA
-    z_ens[close_mask] = 0.5 * (z_pred_val[close_mask] + z_est[close_mask])
+    close_mask = np.abs(z_ref - z_est) < GAMMA
+    z_ens[close_mask] = 0.5 * (z_ref[close_mask] + z_est[close_mask])
     far_idx = np.where(~close_mask)[0]
+    print(f"Points with |z_ref - z_est| >= GAMMA: {far_idx.size}")
     if far_idx.size:
-        pick_pred = rng.random(far_idx.size) < 0.5
-        z_ens[far_idx] = np.where(pick_pred, z_pred_val[far_idx], z_est[far_idx])
+        dist_ref = np.abs(z_ref[far_idx] - z_pred_pc[far_idx])
+        dist_est = np.abs(z_est[far_idx] - z_pred_pc[far_idx])
+        pick_ref = dist_ref <= dist_est
+        z_ens[far_idx] = np.where(pick_ref, z_ref[far_idx], z_est[far_idx])
 
     Y_ens = _reconstruct_y(z_ens)
     mee_ens = np.mean(np.linalg.norm(Y_ens - Y_val, axis=1))
@@ -227,38 +250,69 @@ def main():
     fig.savefig(out_path, dpi=150)
     print(f"Saved plot: {out_path}")
 
-    # Plot abs error: z_est vs z_pred_val
+    # Plot abs error: z_est vs z_ref
     err_est = np.abs(z_est - z_val)
-    err_pred = np.abs(z_pred_val - z_val)
+    err_ref = np.abs(z_ref - z_val)
 
-    out_path = Path("plots/z_est_vs_z_pred_abs_error.png")
+    out_path = Path("plots/z_est_vs_z_ref_abs_error.png")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.scatter(err_est, err_pred, s=18, alpha=0.7, color="tab:blue")
-    lim = max(err_est.max(), err_pred.max())
+    ax.scatter(err_est, err_ref, s=18, alpha=0.7, color="tab:blue")
+    lim = max(err_est.max(), err_ref.max())
     ax.plot([0, lim], [0, lim], color="black", linestyle="--", linewidth=1)
     ax.set_xlabel("Absolute error |z_est - z_val|")
-    ax.set_ylabel("Absolute error |z_pred_val - z_val|")
-    ax.set_title("z_est error vs z_pred_val error")
+    ax.set_ylabel("Absolute error |z_ref - z_val|")
+    ax.set_title("z_est error vs z_ref error")
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     print(f"Saved plot: {out_path}")
 
-    # Plot signed error: z_est vs z_pred_val
+    # Plot signed error: z_est vs z_ref
     err_est_signed = z_est - z_val
-    err_pred_signed = z_pred_val - z_val
+    err_ref_signed = z_ref - z_val
 
-    out_path = Path("plots/z_est_vs_z_pred_signed_error.png")
+    out_path = Path("plots/z_est_vs_z_ref_signed_error.png")
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.scatter(err_est_signed, err_pred_signed, s=18, alpha=0.7, color="tab:purple")
-    lim = max(np.max(np.abs(err_est_signed)), np.max(np.abs(err_pred_signed)))
+    ax.scatter(err_est_signed, err_ref_signed, s=18, alpha=0.7, color="tab:purple")
+    lim = max(np.max(np.abs(err_est_signed)), np.max(np.abs(err_ref_signed)))
     ax.plot([-lim, lim], [-lim, lim], color="black", linestyle="--", linewidth=1)
     ax.axhline(0, color="black", linewidth=0.8, alpha=0.6)
     ax.axvline(0, color="black", linewidth=0.8, alpha=0.6)
     ax.set_xlabel("Signed error (z_est - z_val)")
-    ax.set_ylabel("Signed error (z_pred_val - z_val)")
-    ax.set_title("z_est signed error vs z_pred_val signed error")
+    ax.set_ylabel("Signed error (z_ref - z_val)")
+    ax.set_title("z_est signed error vs z_ref signed error")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    print(f"Saved plot: {out_path}")
+
+    # Plot abs error z_pred (PC) vs max(abs err z_ref, abs err z_est)
+    err_pred_pc = np.abs(z_pred_pc - z_val)
+    err_max = np.maximum(err_ref, err_est)
+
+    out_path = Path("plots/z_pred_pc_vs_max_err.png")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.scatter(err_pred_pc, err_max, s=18, alpha=0.7, color="tab:cyan")
+    lim = max(err_pred_pc.max(), err_max.max())
+    ax.plot([0, lim], [0, lim], color="black", linestyle="--", linewidth=1)
+    ax.set_xlabel("Absolute error |z_pred_pc - z_val|")
+    ax.set_ylabel("max(|z_ref - z_val|, |z_est - z_val|)")
+    ax.set_title("z_pred_pc error vs max(z_ref, z_est) error")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    print(f"Saved plot: {out_path}")
+
+    # Plot |z_ref - z_est| vs max(|z_ref - z_val|, |z_est - z_val|)
+    err_gap = np.abs(z_ref - z_est)
+    err_max = np.maximum(err_ref, err_est)
+    out_path = Path("plots/z_ref_gap_vs_max_err.png")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.scatter(err_gap, err_max, s=18, alpha=0.7, color="tab:green")
+    lim = max(err_gap.max(), err_max.max())
+    ax.plot([0, lim], [0, lim], color="black", linestyle="--", linewidth=1)
+    ax.set_xlabel("|z_ref - z_est|")
+    ax.set_ylabel("max(|z_ref - z_val|, |z_est - z_val|)")
+    ax.set_title("|z_ref - z_est| vs max error")
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     print(f"Saved plot: {out_path}")
