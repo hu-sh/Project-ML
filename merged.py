@@ -29,6 +29,7 @@ LOCAL_PCA_COMPONENTS = 4
 LOCAL_RIDGE_ALPHA = 0.01
 BETA = 5.0
 BETA_SWEEP = np.linspace(0.0, 10.0, 21)
+BETA_SPLIT = 0.5
 
 
 def _parse_fit(path):
@@ -355,21 +356,25 @@ def main(do_plots=True):
     y_refined_ens = _reconstruct_y(z_refined_ens)
     d_perp_vals = np.array([_d_perp(y_hat) for y_hat in y_final_pred])
 
-    # Select optimal beta on the current split
+    # Select optimal beta on a further split of the validation set
+    val_idx = np.arange(len(Y_val))
+    beta_idx, eval_idx = train_test_split(
+        val_idx, test_size=BETA_SPLIT, random_state=42
+    )
     betas = np.asarray(BETA_SWEEP)
     mee_by_beta = []
     for beta in betas:
-        mask = d_perp_vals < beta
-        y_beta = np.where(mask[:, None], y_final_pred, y_refined_ens)
-        mee_by_beta.append(np.mean(np.linalg.norm(y_beta - Y_val, axis=1)))
+        mask = d_perp_vals[beta_idx] < beta
+        y_beta = np.where(mask[:, None], y_final_pred[beta_idx], y_refined_ens[beta_idx])
+        mee_by_beta.append(np.mean(np.linalg.norm(y_beta - Y_val[beta_idx], axis=1)))
     best_idx = int(np.argmin(mee_by_beta))
     beta_opt = float(betas[best_idx])
-    print(f"Best beta (current split): {beta_opt}", flush=True)
+    print(f"Best beta (val split): {beta_opt}", flush=True)
 
     use_final = d_perp_vals < beta_opt
     y_selected = np.where(use_final[:, None], y_final_pred, y_refined_ens)
-    mee_selected = np.mean(np.linalg.norm(y_selected - Y_val, axis=1))
-    print(f"MEE y_selected (d_perp < {beta_opt}): {mee_selected:.5f}", flush=True)
+    mee_selected = np.mean(np.linalg.norm(y_selected[eval_idx] - Y_val[eval_idx], axis=1))
+    print(f"MEE y_selected (d_perp < {beta_opt}) on eval split: {mee_selected:.5f}", flush=True)
 
     metrics = {
         "mee_de": mee_de,
