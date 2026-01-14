@@ -14,6 +14,10 @@ K_NEIGHBORS = 2       # Ottimale per la precisione locale
 RIDGE_ALPHA = 0.0000001   # Regolarizzazione minima
 FIT_PATH = 'fit.txt'
 LAMBDA_SWEEP = [0.01, 0.02, 0.05, 0.08, 0.1, 0.12, 0.15, 0.2, 0.3, 0.5]
+Z_ERROR_LOG_PATH = "z_error_sorted.csv"
+Z_ERROR_LOG_DESC_PATH = "z_error_sorted_desc.csv"
+Z_ERROR_HIST_PATH = "plots/z_abs_error_hist.png"
+Z_PRED_ERROR_HIST_PATH = "plots/z_pred_abs_error_hist.png"
 
 
 def _parse_fit(path):
@@ -228,6 +232,151 @@ def main():
             mae_z_ref = np.mean(np.abs(best_z - z_val.flatten()))
             print(f"\nMiglior lambda (MEE): {best_lam} -> MEE: {best_mee:.5f}")
             print(f"MAE z (refined): {mae_z_ref:.5f}")
+
+            # Distribution of relative improvement: z_ref vs z_pred_val
+            z_true = z_val.flatten()
+            err_pred = np.abs(z_pred_val - z_true)
+            err_ref = np.abs(best_z - z_true)
+            denom = np.where(err_pred > 1e-12, err_pred, 1e-12)
+            rel_impr = (err_pred - err_ref) / denom
+            improved_pct = np.mean(rel_impr > 0) * 100.0
+            mean_impr = np.mean(rel_impr)
+
+            print(f"Improved samples (%): {improved_pct:.2f}")
+            print(f"Mean relative improvement: {mean_impr:.4f}")
+
+            try:
+                import matplotlib.pyplot as plt
+                from pathlib import Path
+
+                out_path = Path("plots/z_ref_relative_improvement.png")
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+
+                fig, ax = plt.subplots(figsize=(8, 6))
+                ax.hist(rel_impr, bins=40, color="tab:blue", alpha=0.8)
+                ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
+                ax.set_xlabel("Relative improvement (|err_pred|-|err_ref|)/|err_pred|")
+                ax.set_ylabel("Count")
+                ax.set_title("Relative improvement of z_ref vs z_pred")
+                fig.tight_layout()
+                fig.savefig(out_path, dpi=150)
+                print(f"Saved plot: {out_path}")
+
+                # Fit curve + selected points (relative improvement < -10)
+                z_min_plot = float(z_true.min())
+                z_max_plot = float(z_true.max())
+                z_grid = np.linspace(z_min_plot, z_max_plot, 1000)
+                fit_vals = _fit_eval(z_grid, T, const, terms)
+
+                out_path = Path("plots/pc2_fit_vs_z_pred_bad.png")
+                fig, ax = plt.subplots(figsize=(8, 6))
+                ax.plot(z_grid, fit_vals, color="black", linewidth=2, label="Fit f(z)")
+
+                bad_idx = np.where(rel_impr < -10)[0]
+                colors = plt.cm.tab20(np.linspace(0, 1, max(len(bad_idx), 1)))
+
+                for j, i in enumerate(bad_idx):
+                    color = colors[j]
+                    ax.scatter(
+                        z_pred_val[i],
+                        pc2_val[i],
+                        color=color,
+                        s=40,
+                        marker="o",
+                        label=f"pred #{i}",
+                    )
+                    ax.scatter(
+                        best_z[i],
+                        pc2_val[i],
+                        color=color,
+                        s=60,
+                        marker="x",
+                        label=f"ref #{i}",
+                    )
+
+                ax.set_xlabel("z")
+                ax.set_ylabel("pc2")
+                ax.set_title("Fit with points where relative improvement < -10")
+                ax.legend(ncol=2, fontsize=8)
+                fig.tight_layout()
+                fig.savefig(out_path, dpi=150)
+                print(f"Saved plot: {out_path}")
+
+                # Fit curve + colored scatter with absolute improvement
+                abs_impr = err_pred - err_ref
+                out_path = Path("plots/pc2_fit_vs_z_pred.png")
+                fig, ax = plt.subplots(figsize=(8, 6))
+                from matplotlib import colors
+
+                vmax = max(abs_impr.max(), -abs_impr.min())
+                norm = colors.TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax)
+                sc = ax.scatter(
+                    z_pred_val,
+                    pc2_val,
+                    c=abs_impr,
+                    cmap="coolwarm",
+                    norm=norm,
+                    s=16,
+                    alpha=0.8,
+                )
+                ax.plot(z_grid, fit_vals, color="black", linewidth=2, label="Fit f(z)")
+                ax.set_xlabel("z_pred_val")
+                ax.set_ylabel("pc2")
+                ax.set_title("pc2 vs z_pred_val with fit and absolute improvement")
+                fig.colorbar(sc, ax=ax, label="Absolute improvement |err_pred|-|err_ref|")
+                ax.legend()
+                fig.tight_layout()
+                fig.savefig(out_path, dpi=150)
+                print(f"Saved plot: {out_path}")
+
+                # Log rows sorted by absolute improvement (err_pred - err_ref)
+                abs_impr = err_pred - err_ref
+                order = np.argsort(abs_impr)
+                rows = np.column_stack([z_pred_val, best_z, z_true, err_ref, abs_impr])[order]
+                log_path = Path(Z_ERROR_LOG_PATH)
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                with log_path.open("w", encoding="utf-8") as f:
+                    f.write("z_pred_val,z_ref,z_val,abs_err,abs_impr\n")
+                    for r in rows:
+                        f.write(f"{r[0]:.6f},{r[1]:.6f},{r[2]:.6f},{r[3]:.6f},{r[4]:.6f}\n")
+                print(f"Saved log: {log_path}")
+
+                # Log rows sorted by decreasing absolute error
+                order_desc = np.argsort(err_ref)[::-1]
+                rows_desc = np.column_stack([z_pred_val, best_z, z_true, err_ref, abs_impr])[order_desc]
+                log_desc_path = Path(Z_ERROR_LOG_DESC_PATH)
+                log_desc_path.parent.mkdir(parents=True, exist_ok=True)
+                with log_desc_path.open("w", encoding="utf-8") as f:
+                    f.write("z_pred_val,z_ref,z_val,abs_err,abs_impr\n")
+                    for r in rows_desc:
+                        f.write(f"{r[0]:.6f},{r[1]:.6f},{r[2]:.6f},{r[3]:.6f},{r[4]:.6f}\n")
+                print(f"Saved log: {log_desc_path}")
+
+                # Histogram of absolute errors
+                fig, ax = plt.subplots(figsize=(8, 6))
+                ax.hist(err_ref, bins=40, color="tab:green", alpha=0.8)
+                ax.set_xlabel("Absolute error |z_ref - z_val|")
+                ax.set_ylabel("Count")
+                ax.set_title("Histogram of absolute errors (z_ref)")
+                fig.tight_layout()
+                hist_path = Path(Z_ERROR_HIST_PATH)
+                hist_path.parent.mkdir(parents=True, exist_ok=True)
+                fig.savefig(hist_path, dpi=150)
+                print(f"Saved plot: {hist_path}")
+
+                # Histogram of absolute errors for z_pred_val
+                fig, ax = plt.subplots(figsize=(8, 6))
+                ax.hist(err_pred, bins=40, color="tab:orange", alpha=0.8)
+                ax.set_xlabel("Absolute error |z_pred_val - z_val|")
+                ax.set_ylabel("Count")
+                ax.set_title("Histogram of absolute errors (z_pred_val)")
+                fig.tight_layout()
+                hist_path = Path(Z_PRED_ERROR_HIST_PATH)
+                hist_path.parent.mkdir(parents=True, exist_ok=True)
+                fig.savefig(hist_path, dpi=150)
+                print(f"Saved plot: {hist_path}")
+            except Exception as exc:
+                print(f"Plotting failed: {exc}")
     except FileNotFoundError:
         print(f"\nFit file not found: {FIT_PATH}. Skipping refinement.")
     
