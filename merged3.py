@@ -1,3 +1,4 @@
+import re
 import time
 from pathlib import Path
 
@@ -15,11 +16,13 @@ from scipy import stats
 
 
 FILE_PATH = "data/CUP/ML-CUP25-TR.csv"
+FIT_PATH = "fit.txt"
 
 N_COMPONENTS = 6
 N_PCA_COMPONENTS = 5
 K_NEIGHBORS = 2
 RIDGE_ALPHA = 0.0000001
+LAMBDA_SWEEP = [0.01, 0.02, 0.05, 0.08, 0.1, 0.12, 0.15, 0.2, 0.3, 0.5]
 
 LOCAL_PCA_COMPONENTS = 4
 LOCAL_RIDGE_ALPHA = 0.01
@@ -55,6 +58,109 @@ def _objective_function(weights, X_train_sc, X_val_sc, X_train_pca, X_val_pca, Y
     return _calculate_mee(Y_val, y_pred)
 
 
+def _parse_fit(path):
+    with open(path, "r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    T = None
+    const = 0.0
+    terms = []
+    for line in lines:
+        if line.startswith("T ="):
+            T = float(line.split("=", 1)[1].strip())
+            continue
+        if line.startswith("f(") or line.startswith("x ="):
+            continue
+        if re.fullmatch(r"[+-]?[0-9.eE+-]+", line):
+            const += float(line)
+            continue
+        m = re.match(r"([+-])\s*([0-9.eE+-]+)\s*\*\s*(sin|cos)\((\d+)\*pi\*x/T\)", line)
+        if not m:
+            raise ValueError(f"Unrecognized line in fit: {line}")
+        sign, coeff, kind, k = m.groups()
+        coeff = float(coeff)
+        if sign == "-":
+            coeff = -coeff
+        terms.append((coeff, kind, int(k)))
+    if T is None:
+        raise ValueError("Missing T in fit file")
+    return T, const, terms
+
+
+def _fit_eval(z, T, const, terms):
+    out = const
+    for coeff, kind, k in terms:
+        arg = (k * np.pi * z) / T
+        out += coeff * (np.sin(arg) if kind == "sin" else np.cos(arg))
+    return out
+
+
+def _fit_deriv(z, T, terms):
+    out = 0.0
+    for coeff, kind, k in terms:
+        arg = (k * np.pi * z) / T
+        factor = (k * np.pi) / T
+        if kind == "sin":
+            out += coeff * np.cos(arg) * factor
+        else:
+            out += -coeff * np.sin(arg) * factor
+    return out
+
+
+def _refine_z_reg(z0, pc2, T, const, terms, z_min, z_max, lam):
+    grid = z0 + np.linspace(-T / 2.0, T / 2.0, 41)
+    grid = np.clip(grid, z_min, z_max)
+    vals = _fit_eval(grid, T, const, terms)
+    obj = (vals - pc2) ** 2 + lam * (grid - z0) ** 2
+    z = grid[np.argmin(obj)]
+
+    for _ in range(30):
+        fz = _fit_eval(z, T, const, terms)
+        dfz = _fit_deriv(z, T, terms)
+        grad = 2 * (fz - pc2) * dfz + 2 * lam * (z - z0)
+        hess = 2 * (dfz ** 2) + 2 * lam
+        if abs(hess) < 1e-8:
+            break
+        step = grad / hess
+        if abs(step) > 5.0:
+            step = np.sign(step) * 5.0
+        z_new = np.clip(z - step, z_min, z_max)
+        if abs(z_new - z) < 1e-6:
+            z = z_new
+            break
+        z = z_new
+    return z
+
+
+def _reconstruct_y(z):
+    k1 = 0.5463
+    k2 = 1.1395
+    y1_rec = k1 * z * np.cos(k2 * z)
+    y2_rec = k1 * z * np.sin(k2 * z)
+    sum_rec = -z * np.cos(2 * z)
+    y3_rec = (sum_rec + z) / 2.0
+    y4_rec = (sum_rec - z) / 2.0
+    return np.column_stack([y1_rec, y2_rec, y3_rec, y4_rec])
+
+
+def _refine_with_lambda_sweep(z0, pc2, Y_ref, T, const, terms, z_min, z_max):
+    best = None
+    for lam in LAMBDA_SWEEP:
+        z_ref = np.array(
+            [_refine_z_reg(z_i, pc2_i, T, const, terms, z_min, z_max, lam) for z_i, pc2_i in zip(z0, pc2)]
+        )
+        Y_pred = _reconstruct_y(z_ref)
+        mee = np.mean(np.linalg.norm(Y_pred - Y_ref, axis=1))
+        if best is None or mee < best[0]:
+            best = (mee, lam, z_ref)
+    return best
+
+
+def _refine_with_lambda(z0, pc2, T, const, terms, z_min, z_max, lam):
+    return np.array(
+        [_refine_z_reg(z_i, pc2_i, T, const, terms, z_min, z_max, lam) for z_i, pc2_i in zip(z0, pc2)]
+    )
+
+
 def _hist_plot(values, out_path, xlabel, title, color="tab:blue", bins=40):
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.hist(values, bins=bins, color=color, alpha=0.8)
@@ -71,6 +177,9 @@ def main():
     X = df.iloc[:, 0:12].values
     Y = df.iloc[:, 12:16].values
     z = Y[:, 2] - Y[:, 3]
+    sample_ids = df.index.values
+
+    T, const, terms = _parse_fit(FIT_PATH)
 
     rng_seed = int(time.time_ns() % 1_000_000)
     print(f"random_state: {rng_seed}", flush=True)
@@ -87,6 +196,8 @@ def main():
     y_final_pred_all = []
     y_val_all = []
     fold_ids_all = []
+    x_val_all = []
+    sample_id_all = []
 
     fit_params_rows = []
     kf = KFold(n_splits=5, shuffle=True, random_state=rng_seed)
@@ -94,6 +205,7 @@ def main():
         X_train, X_val = X[train_idx], X[val_idx]
         Y_train, Y_val = Y[train_idx], Y[val_idx]
         z_train, z_val = z[train_idx], z[val_idx]
+        id_val = sample_ids[val_idx]
 
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
@@ -187,6 +299,26 @@ def main():
         pc_train = X_train_pca_full[:, :2]
         z_pred_pca_train = pc_intercept + pc_train @ pc_betas
 
+        pc2_val = pc_val[:, 1]
+        pc2_train = pc_train[:, 1]
+        z_min = float(z_train.min())
+        z_max = float(z_train.max())
+
+        _, best_lam_pred, z_pred_train = _refine_with_lambda_sweep(
+            z_pred_train, pc2_train, Y_train, T, const, terms, z_min, z_max
+        )
+        z_pred = _refine_with_lambda(z_pred, pc2_val, T, const, terms, z_min, z_max, best_lam_pred)
+
+        _, best_lam_pca, z_pred_pca_train = _refine_with_lambda_sweep(
+            z_pred_pca_train, pc2_train, Y_train, T, const, terms, z_min, z_max
+        )
+        z_pred_pca = _refine_with_lambda(z_pred_pca, pc2_val, T, const, terms, z_min, z_max, best_lam_pca)
+
+        _, best_lam_est, z_est_raw_train = _refine_with_lambda_sweep(
+            z_est_raw_train, pc2_train, Y_train, T, const, terms, z_min, z_max
+        )
+        z_est_raw = _refine_with_lambda(z_est_raw, pc2_val, T, const, terms, z_min, z_max, best_lam_est)
+
         err_z_pred.append(z_pred - z_val)
         err_z_pred_pca.append(z_pred_pca - z_val)
         err_z_est_raw.append(z_est_raw - z_val)
@@ -199,6 +331,8 @@ def main():
         y_final_pred_all.append(y_final_pred)
         y_val_all.append(Y_val)
         fold_ids_all.append(np.full_like(z_val, fold_idx, dtype=int))
+        x_val_all.append(X_val)
+        sample_id_all.append(id_val)
 
         z_pred_err_train = z_pred_train - z_train
         z_pred_pca_err_train = z_pred_pca_train - z_train
@@ -235,10 +369,15 @@ def main():
     z_val_all = np.concatenate(z_val_all)
     y_final_pred_all = np.vstack(y_final_pred_all)
     y_val_all = np.vstack(y_val_all)
+    x_val_all = np.vstack(x_val_all)
+    sample_id_all = np.concatenate(sample_id_all)
 
+    x_cols = {f"x_{i + 1}": x_val_all[:, i] for i in range(x_val_all.shape[1])}
     errors_df = pd.DataFrame(
         {
             "fold": np.concatenate(fold_ids_all),
+            "sample_id": sample_id_all,
+            **x_cols,
             "z_val": z_val_all,
             "z_pred": z_pred_all,
             "z_pred_pca": z_pred_pca_all,

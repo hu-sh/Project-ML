@@ -68,6 +68,8 @@ def main():
     folds = df["fold"].values.astype(int)
     z_grid = np.linspace(Z_MIN, Z_MAX, Z_GRID_SIZE)
     z_star = np.empty_like(z_val)
+    loglik_star = np.empty_like(z_val)
+    loglik_true = np.empty_like(z_val)
     for fold in np.unique(folds):
         mask = folds == fold
         params = params_by_fold[fold]
@@ -100,7 +102,35 @@ def main():
                     scale=params["gamma_scale"],
                 )
             )
-            z_star[i] = z_grid[int(np.argmax(loglik))]
+            best_idx = int(np.argmax(loglik))
+            z_star[i] = z_grid[best_idx]
+            loglik_star[i] = loglik[best_idx]
+
+            err_pred_true = z_pred[i] - z_val[i]
+            err_pred_pca_true = z_pred_pca[i] - z_val[i]
+            err_est_raw_true = z_est_raw[i] - z_val[i]
+            err_y_true = np.linalg.norm(y_final_pred[i] - y_val[i])
+            loglik_true[i] = (
+                stats.t.logpdf(
+                    err_pred_true,
+                    df=params["t_pred_df"],
+                    loc=params["t_pred_loc"],
+                    scale=params["t_pred_scale"],
+                )
+                + stats.norm.logpdf(err_pred_pca_true, loc=params["norm_mu"], scale=params["norm_sigma"])
+                + stats.t.logpdf(
+                    err_est_raw_true,
+                    df=params["t_est_raw_df"],
+                    loc=params["t_est_raw_loc"],
+                    scale=params["t_est_raw_scale"],
+                )
+                + stats.gamma.logpdf(
+                    err_y_true,
+                    a=params["gamma_k"],
+                    loc=params["gamma_loc"],
+                    scale=params["gamma_scale"],
+                )
+            )
     y_star = _y_of_z(z_star)
 
     y_from_z_pred = _y_of_z(z_pred)
@@ -125,6 +155,34 @@ def main():
     hist_path = out_dir / "z_star_abs_error.png"
     fig.savefig(hist_path, dpi=150)
     print(f"Saved plot: {hist_path}", flush=True)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    color_vals = np.abs(z_pred - z_est_raw)
+    sc = ax.scatter(loglik_true, loglik_star, s=18, alpha=0.7, c=color_vals, cmap="viridis")
+    lim_min = min(loglik_true.min(), loglik_star.min())
+    lim_max = max(loglik_true.max(), loglik_star.max())
+    ax.plot([lim_min, lim_max], [lim_min, lim_max], color="black", linestyle="--", linewidth=1)
+    ax.set_xlabel("Log-likelihood at true z")
+    ax.set_ylabel("Log-likelihood at z*")
+    ax.set_title("Likelihood: z* vs true z")
+    fig.colorbar(sc, ax=ax, label="|z_pred - z_est_raw|")
+    fig.tight_layout()
+    ll_path = out_dir / "likelihood_z_star_vs_true.png"
+    fig.savefig(ll_path, dpi=150)
+    print(f"Saved plot: {ll_path}", flush=True)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    color_vals = np.abs(z_star - z_val)
+    sc = ax.scatter(loglik_true, loglik_star, s=18, alpha=0.7, c=color_vals, cmap="viridis")
+    ax.plot([lim_min, lim_max], [lim_min, lim_max], color="black", linestyle="--", linewidth=1)
+    ax.set_xlabel("Log-likelihood at true z")
+    ax.set_ylabel("Log-likelihood at z*")
+    ax.set_title("Likelihood: z* vs true z")
+    fig.colorbar(sc, ax=ax, label="|z* - z|")
+    fig.tight_layout()
+    ll_path = out_dir / "likelihood_z_star_vs_true_by_z_star_err.png"
+    fig.savefig(ll_path, dpi=150)
+    print(f"Saved plot: {ll_path}", flush=True)
 
     abs_err_df = pd.DataFrame(
         {
