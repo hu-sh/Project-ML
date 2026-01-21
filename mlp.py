@@ -14,6 +14,10 @@ import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+seed = 43
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+
 # Aggiunta ELU alla mappa delle attivazioni per maggiore flessibilità
 act_map = {
     "ReLU": nn.ReLU, 
@@ -46,7 +50,9 @@ class DynamicMLP(nn.Module):
             
             in_dim = h_dim
 
-        layers.append(nn.Linear(in_dim, output_size))
+        last_layer = nn.Linear(in_dim, output_size)
+        nn.init.xavier_uniform_(last_layer.weight) # <--- AGGIUNGI QUESTO
+        layers.append(last_layer)
         
         if task_type == 'classification':
             layers.append(nn.Sigmoid())
@@ -239,9 +245,9 @@ def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression', st
     all_results = []   
 
     if task_type == 'regression':
-        cv = KFold(n_splits=k_folds, shuffle=True, random_state=42)
+        cv = KFold(n_splits=k_folds, shuffle=True,random_state=43)
     else:
-        cv = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42)
+        cv = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=43)
         
     for i, config in enumerate(combinations):
         val_scores = []
@@ -299,8 +305,10 @@ def grid_search_kfold_cv(combinations, k_folds, X, y, task_type='regression', st
     return best_config, best_histories, best_avg_stop, all_results
 
 
-def plot_training_history(history, title="", task_type = 'regression'):
+def plot_training_history(history, title="", task_type = 'regression', is_test=False):
     score = 'Accuracy' if task_type == 'classification' else 'MEE'
+    what_is = "Test" if is_test else "Validation"
+    avg = "" if is_test else "Avg "
     epochs = range(1, len(history['train_loss']) + 1)
     
     plt.figure(figsize=(16, 6))
@@ -310,13 +318,15 @@ def plot_training_history(history, title="", task_type = 'regression'):
     tr_loss = history['train_loss']
     std_tr_loss = history.get('std_train_loss', np.zeros(len(tr_loss)))
     plt.plot(epochs, tr_loss, label='Training Loss', color='blue')
-    plt.fill_between(epochs, tr_loss - std_tr_loss, tr_loss + std_tr_loss, color='blue', alpha=0.15, label='Std Dev (Train)')
+    if not is_test:
+        plt.fill_between(epochs, tr_loss - std_tr_loss, tr_loss + std_tr_loss, color='blue', alpha=0.15, label='Std Dev (Train)')
     
     if 'val_loss' in history:
         val_loss = history['val_loss']
         std_val_loss = history.get('std_val_loss', np.zeros(len(val_loss)))       
-        plt.plot(epochs, val_loss, label='Avg Validation Loss', color='orange', linestyle='--')
-        plt.fill_between(epochs, val_loss - std_val_loss, val_loss + std_val_loss, color='orange', alpha=0.15, label='Std Dev (Val)')
+        plt.plot(epochs, val_loss, label=avg+what_is+' Loss', color='orange', linestyle='--')
+        if not is_test:
+            plt.fill_between(epochs, val_loss - std_val_loss, val_loss + std_val_loss, color='orange', alpha=0.15, label='Std Dev (Val)')
     
     plt.title(f'{title} - Loss')
     plt.xlabel('Epochs')
@@ -329,14 +339,16 @@ def plot_training_history(history, title="", task_type = 'regression'):
     if 'train_score' in history:
         tr_score = history['train_score']
         std_tr_score = history.get('std_train_score', np.zeros(len(tr_score)))
-        plt.plot(epochs, tr_score, label=f'Avg Training {score}', color='green')
-        plt.fill_between(epochs, tr_score - std_tr_score, tr_score + std_tr_score, color='green', alpha=0.15, label='Std Dev (Train)')
+        plt.plot(epochs, tr_score, label=f'{avg}Training {score}', color='green')
+        if not is_test:
+            plt.fill_between(epochs, tr_score - std_tr_score, tr_score + std_tr_score, color='green', alpha=0.15, label='Std Dev (Train)')
 
     if 'val_score' in history:
         val_score = history['val_score']
         std_val_score = history.get('std_val_score', np.zeros(len(val_score)))
-        plt.plot(epochs, val_score, label=f'Avg Validation {score}', color='red', linestyle='--')
-        plt.fill_between(epochs, val_score - std_val_score, val_score + std_val_score, color='red', alpha=0.15, label='Std Dev (Val)')
+        plt.plot(epochs, val_score, label=f'{avg}{what_is} {score}', color='red', linestyle='--')
+        if not is_test:
+            plt.fill_between(epochs, val_score - std_val_score, val_score + std_val_score, color='red', alpha=0.15, label='Std Dev (Val)')
     
     plt.title(f'{title} - {score}')
     plt.xlabel('Epochs')
@@ -345,3 +357,4 @@ def plot_training_history(history, title="", task_type = 'regression'):
     plt.grid(True)
     
     plt.tight_layout()
+    plt.show()
