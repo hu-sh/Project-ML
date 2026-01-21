@@ -8,8 +8,11 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
+from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
+from scipy.optimize import differential_evolution
 
 
 FILE_PATH = "data/CUP/ML-CUP25-TR.csv"
@@ -20,6 +23,39 @@ GRID_STEPS = 201
 GRID_SIZE = 5000
 K_SSD = 100
 N_COMPONENTS = 6
+K_NEIGHBORS = 2
+LOCAL_PCA_COMPONENTS = 4
+LOCAL_RIDGE_ALPHA = 0.01
+
+
+def _calculate_mee(y_true, y_pred):
+    return np.mean(np.linalg.norm(y_true - y_pred, axis=1))
+
+
+def _local_ridge_predict(weights, X_train_sc, X_val_sc, X_train_pca, X_val_pca, Y_train):
+    W_sqrt = np.sqrt(np.maximum(weights, 0))
+    X_train_weighted = X_train_pca * W_sqrt
+    X_val_weighted = X_val_pca * W_sqrt
+
+    nbrs = NearestNeighbors(n_neighbors=K_NEIGHBORS, algorithm="ball_tree").fit(X_train_weighted)
+    _, indices = nbrs.kneighbors(X_val_weighted)
+
+    y_preds = []
+    for i in range(len(X_val_sc)):
+        idx = indices[i]
+        X_loc = X_train_sc[idx]
+        Y_loc = Y_train[idx]
+        model = Ridge(alpha=LOCAL_RIDGE_ALPHA)
+        model.fit(X_loc, Y_loc)
+        pred = model.predict(X_val_sc[i:i + 1])
+        y_preds.append(pred[0])
+
+    return np.array(y_preds)
+
+
+def _objective_function(weights, X_train_sc, X_val_sc, X_train_pca, X_val_pca, Y_train, Y_val):
+    y_pred = _local_ridge_predict(weights, X_train_sc, X_val_sc, X_train_pca, X_val_pca, Y_train)
+    return _calculate_mee(Y_val, y_pred)
 
 
 def get_physical_features(z_arr):
@@ -117,6 +153,8 @@ def main():
     all_z_forest_refined = []
     all_y_val = []
     all_y_abs_err = []
+    all_y_evolution = []
+    all_y_test5_snapped = []
     all_weighted_ssd = []
     all_weighted_ssd_true = []
     all_unweighted_ssd = []
@@ -242,6 +280,42 @@ def main():
         all_z_abs_err.extend(np.abs(z_recovered_refined_snapped - z_val))
         Y_pred_snapped = reconstruct_targets(z_recovered_refined_snapped)
         all_y_abs_err.extend(np.linalg.norm(Y_pred_snapped - Y_val, axis=1))
+        all_y_test5_snapped.append(Y_pred_snapped)
+
+        # --- differential evolution (y_evolution) ---
+        scaler_evo = StandardScaler()
+        X_train_sc_evo = scaler_evo.fit_transform(X_train)
+        X_val_sc_evo = scaler_evo.transform(X_val)
+        pca_evo = PCA(n_components=max(LOCAL_PCA_COMPONENTS, 2))
+        X_train_pca_full = pca_evo.fit_transform(X_train_sc_evo)
+        X_val_pca_full = pca_evo.transform(X_val_sc_evo)
+        X_train_pca_local = X_train_pca_full[:, :LOCAL_PCA_COMPONENTS]
+        X_val_pca_local = X_val_pca_full[:, :LOCAL_PCA_COMPONENTS]
+        bounds = [(0, 10)] * LOCAL_PCA_COMPONENTS
+        result = differential_evolution(
+            _objective_function,
+            bounds,
+            args=(
+                X_train_sc_evo,
+                X_val_sc_evo,
+                X_train_pca_local,
+                X_val_pca_local,
+                Y_train,
+                Y_val,
+            ),
+            strategy="best1bin",
+            maxiter=10,
+            popsize=15,
+            tol=0.01,
+            mutation=(0.5, 1),
+            recombination=0.7,
+            seed=42,
+            disp=True,
+        )
+        y_evolution = _local_ridge_predict(
+            result.x, X_train_sc_evo, X_val_sc_evo, X_train_pca_local, X_val_pca_local, Y_train
+        )
+        all_y_evolution.append(y_evolution)
         y_test5_before = reconstruct_targets(z_recovered)
         y_test5_refined = reconstruct_targets(z_recovered_refined)
         y_test5_snapped = Y_pred_snapped
@@ -341,6 +415,10 @@ def main():
                     "y_forest_refined_2": float(y_forest_refined[row_idx, 1]),
                     "y_forest_refined_3": float(y_forest_refined[row_idx, 2]),
                     "y_forest_refined_4": float(y_forest_refined[row_idx, 3]),
+                    "y_evolution_1": float(y_evolution[row_idx, 0]),
+                    "y_evolution_2": float(y_evolution[row_idx, 1]),
+                    "y_evolution_3": float(y_evolution[row_idx, 2]),
+                    "y_evolution_4": float(y_evolution[row_idx, 3]),
                 }
             )
 
@@ -484,6 +562,8 @@ def main():
     all_z_test5 = np.array(all_z_test5)
     all_z_forest_refined = np.array(all_z_forest_refined)
     all_y_val = np.vstack(all_y_val)
+    all_y_evolution = np.vstack(all_y_evolution)
+    all_y_test5_snapped = np.vstack(all_y_test5_snapped)
 
     diffs = np.abs(all_z_test5 - all_z_forest_refined)
     y_test5 = reconstruct_targets(all_z_test5)
@@ -520,6 +600,7 @@ def main():
         fig.tight_layout()
         fig.savefig(out_path, dpi=150)
         print(f"Saved plot: {out_path}")
+
 
 
 if __name__ == "__main__":
