@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2026/dev/Arch Linux) (preloaded format=pdflatex 2026.1.9)  22 JAN 2026 15:48
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2026/dev/Arch Linux) (preloaded format=pdflatex 2026.1.9)  22 JAN 2026 16:27
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -949,12 +949,12 @@ Dictionary: translator-theorem-dictionary, Language: English
 [2
 
 ]
-LaTeX Font Info:    Trying to load font information for U+msa on input line 88.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 92.
 
  (/usr/share/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 88.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 92.
 
 
 (/usr/share/texmf-dist/tex/latex/amsfonts/umsb.fd
@@ -966,52 +966,52 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 ]
 
 LaTeX Font Warning: Font shape `T1/cmss/b/n' undefined
-(Font)              using `T1/cmss/m/n' instead on input line 111.
+(Font)              using `T1/cmss/m/n' instead on input line 116.
 
 
 
 [4
 
 ]
-<./img/mse_monks1.png, id=172, 623.32875pt x 438.8897pt>
+<./img/mse_monks1.png, id=171, 623.32875pt x 438.8897pt>
 File: ./img/mse_monks1.png Graphic file (type png)
 <use ./img/mse_monks1.png>
-Package pdftex.def Info: ./img/mse_monks1.png  used on input line 138.
+Package pdftex.def Info: ./img/mse_monks1.png  used on input line 141.
 (pdftex.def)             Requested size: 202.04681pt x 142.26244pt.
-<./img/acc_monks1.png, id=173, 621.07031pt x 442.65375pt>
+<./img/acc_monks1.png, id=172, 621.07031pt x 442.65375pt>
 File: ./img/acc_monks1.png Graphic file (type png)
 <use ./img/acc_monks1.png>
-Package pdftex.def Info: ./img/acc_monks1.png  used on input line 138.
+Package pdftex.def Info: ./img/acc_monks1.png  used on input line 141.
 (pdftex.def)             Requested size: 199.60893pt x 142.26672pt.
 
 
 [5
 
  <./img/mse_monks1.png (PNG copy)> <./img/acc_monks1.png (PNG copy)>]
-<./img/mse_monks2.png, id=205, 625.58719pt x 439.6425pt>
+<./img/mse_monks2.png, id=202, 625.58719pt x 439.6425pt>
 File: ./img/mse_monks2.png Graphic file (type png)
 <use ./img/mse_monks2.png>
-Package pdftex.def Info: ./img/mse_monks2.png  used on input line 162.
+Package pdftex.def Info: ./img/mse_monks2.png  used on input line 164.
 (pdftex.def)             Requested size: 202.42567pt x 142.25822pt.
-<./img/acc_monks2.png, id=206, 616.55344pt x 436.63126pt>
+<./img/acc_monks2.png, id=203, 616.55344pt x 436.63126pt>
 File: ./img/acc_monks2.png Graphic file (type png)
 <use ./img/acc_monks2.png>
-Package pdftex.def Info: ./img/acc_monks2.png  used on input line 162.
+Package pdftex.def Info: ./img/acc_monks2.png  used on input line 164.
 (pdftex.def)             Requested size: 200.88551pt x 142.26324pt.
 
 
 [6
 
  <./img/mse_monks2.png (PNG copy)> <./img/acc_monks2.png (PNG copy)>]
-<./img/mse_monks3.png, id=236, 623.32875pt x 438.8897pt>
+<./img/mse_monks3.png, id=233, 623.32875pt x 438.8897pt>
 File: ./img/mse_monks3.png Graphic file (type png)
 <use ./img/mse_monks3.png>
-Package pdftex.def Info: ./img/mse_monks3.png  used on input line 187.
+Package pdftex.def Info: ./img/mse_monks3.png  used on input line 189.
 (pdftex.def)             Requested size: 202.04681pt x 142.26244pt.
-<./img/acc_monks3.png, id=237, 616.55344pt x 437.38406pt>
+<./img/acc_monks3.png, id=234, 616.55344pt x 437.38406pt>
 File: ./img/acc_monks3.png Graphic file (type png)
 <use ./img/acc_monks3.png>
-Package pdftex.def Info: ./img/acc_monks3.png  used on input line 187.
+Package pdftex.def Info: ./img/acc_monks3.png  used on input line 189.
 (pdftex.def)             Requested size: 200.53741pt x 142.26158pt.
 
 
@@ -1026,15 +1026,15 @@ Package pdftex.def Info: ./img/acc_monks3.png  used on input line 187.
 [9
 
 ]
-<./img/z-pc2.png, id=325, 371.13657pt x 361.35pt>
+<./img/z-pc2.png, id=323, 371.13657pt x 361.35pt>
 File: ./img/z-pc2.png Graphic file (type png)
 <use ./img/z-pc2.png>
-Package pdftex.def Info: ./img/z-pc2.png  used on input line 239.
+Package pdftex.def Info: ./img/z-pc2.png  used on input line 242.
 (pdftex.def)             Requested size: 146.1188pt x 142.26578pt.
-<./img/z-pc1.png, id=326, 499.11469pt x 484.81125pt>
+<./img/z-pc1.png, id=324, 499.11469pt x 484.81125pt>
 File: ./img/z-pc1.png Graphic file (type png)
 <use ./img/z-pc1.png>
-Package pdftex.def Info: ./img/z-pc1.png  used on input line 239.
+Package pdftex.def Info: ./img/z-pc1.png  used on input line 242.
 (pdftex.def)             Requested size: 146.46072pt x 142.26352pt.
 
 
@@ -1045,14 +1045,14 @@ Package pdftex.def Info: ./img/z-pc1.png  used on input line 239.
 [11
 
 ]
-<./img/residuals_fourier_analysis.jpg, id=383, 963.6pt x 770.88pt>
+<./img/residuals_fourier_analysis.jpg, id=380, 963.6pt x 770.88pt>
 File: ./img/residuals_fourier_analysis.jpg Graphic file (type jpg)
 <use ./img/residuals_fourier_analysis.jpg>
 Package pdftex.def Info: ./img/residuals_fourier_analysis.jpg  used on input li
-ne 282.
+ne 286.
 (pdftex.def)             Requested size: 142.25475pt x 113.80379pt.
 
-Overfull \vbox (10.05995pt too high) detected at line 282
+Overfull \vbox (10.05995pt too high) detected at line 286
  []
 
 
@@ -1070,26 +1070,26 @@ Overfull \vbox (10.05995pt too high) detected at line 282
 ]
 File: ./img/z-pc2.png Graphic file (type png)
 <use ./img/z-pc2.png>
-Package pdftex.def Info: ./img/z-pc2.png  used on input line 326.
+Package pdftex.def Info: ./img/z-pc2.png  used on input line 331.
 (pdftex.def)             Requested size: 116.89163pt x 113.80931pt.
 
 
 [15
 
 ]
-<./img/alpha_vs_mee_gamma_0.1.png, id=499, 578.16pt x 433.62pt>
+<./img/alpha_vs_mee_gamma_0.1.png, id=497, 578.16pt x 433.62pt>
 File: ./img/alpha_vs_mee_gamma_0.1.png Graphic file (type png)
 <use ./img/alpha_vs_mee_gamma_0.1.png>
 Package pdftex.def Info: ./img/alpha_vs_mee_gamma_0.1.png  used on input line 3
-51.
+56.
 (pdftex.def)             Requested size: 113.80379pt x 85.35284pt.
-<./img/abs_z_error_z_refined_vs_z_forest_refined.png, id=501, 578.16pt x 433.62
+<./img/abs_z_error_z_refined_vs_z_forest_refined.png, id=499, 578.16pt x 433.62
 pt>
 File: ./img/abs_z_error_z_refined_vs_z_forest_refined.png Graphic file (type pn
 g)
 <use ./img/abs_z_error_z_refined_vs_z_forest_refined.png>
 Package pdftex.def Info: ./img/abs_z_error_z_refined_vs_z_forest_refined.png  u
-sed on input line 351.
+sed on input line 356.
 (pdftex.def)             Requested size: 113.80379pt x 85.35284pt.
 
 
@@ -1121,14 +1121,6 @@ fined.png>]
 [22
 
 ]
-
-[23
-
-]
-
-[24
-
-]
 \tf@nav=\write6
 \openout6 = `main.nav'.
 
@@ -1152,38 +1144,45 @@ Package rerunfilecheck Info: File `main.out' has not changed.
  ) 
 Here is how much of TeX's memory you used:
  23379 strings out of 475171
- 444628 string characters out of 5767096
+ 444643 string characters out of 5767096
  804619 words of memory out of 5000000
- 45812 multiletter control sequences out of 15000+600000
+ 45814 multiletter control sequences out of 15000+600000
  586083 words of font info for 99 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 101i,15n,107p,379b,740s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/
-texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texmf-dist/fon
-ts/type1/public/amsfonts/cm/cmmi12.pfb></usr/share/texmf-dist/fonts/type1/publi
-c/amsfonts/cm/cmmi7.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/c
-mmi9.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr
-/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texmf-di
-st/fonts/type1/public/amsfonts/cm/cmss9.pfb></usr/share/texmf-dist/fonts/type1/
-public/amsfonts/cm/cmsy10.pfb></usr/share/texmf-dist/fonts/type1/public/amsfont
-s/cm/cmsy7.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfsi0600.pfb>
-</usr/share/texmf-dist/fonts/type1/public/cm-super/sfsi0700.pfb></usr/share/tex
-mf-dist/fonts/type1/public/cm-super/sfsi0900.pfb></usr/share/texmf-dist/fonts/t
-ype1/public/cm-super/sfsi1000.pfb></usr/share/texmf-dist/fonts/type1/public/cm-
-super/sfsi1440.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfss0500.
-pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfss0600.pfb></usr/share
-/texmf-dist/fonts/type1/public/cm-super/sfss0700.pfb></usr/share/texmf-dist/fon
-ts/type1/public/cm-super/sfss0900.pfb></usr/share/texmf-dist/fonts/type1/public
-/cm-super/sfss1000.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfss1
-200.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfss1440.pfb></usr/s
-hare/texmf-dist/fonts/type1/public/cm-super/sfsx0700.pfb></usr/share/texmf-dist
-/fonts/type1/public/cm-super/sfsx1000.pfb></usr/share/texmf-dist/fonts/type1/pu
-blic/cm-super/sfsx1200.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/s
-ftt1000.pfb>
-Output written on main.pdf (24 pages, 901998 bytes).
+ 101i,15n,107p,379b,741s stack positions out of 10000i,1000n,20000p,200000b,200000s
+
+pdfTeX warning (dest): name{Navigation23} has been referenced but does not exis
+t, replaced by a fixed one
+
+
+pdfTeX warning (dest): name{Navigation24} has been referenced but does not exis
+t, replaced by a fixed one
+
+</usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/te
+xmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texmf-dist/fonts
+/type1/public/amsfonts/cm/cmmi12.pfb></usr/share/texmf-dist/fonts/type1/public/
+amsfonts/cm/cmmi7.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmm
+i9.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/s
+hare/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></usr/share/texmf-dist
+/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texmf-dist/fonts/type1/p
+ublic/amsfonts/cm/cmsy7.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/
+sfsi0600.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfsi0700.pfb></
+usr/share/texmf-dist/fonts/type1/public/cm-super/sfsi0900.pfb></usr/share/texmf
+-dist/fonts/type1/public/cm-super/sfsi1000.pfb></usr/share/texmf-dist/fonts/typ
+e1/public/cm-super/sfsi1440.pfb></usr/share/texmf-dist/fonts/type1/public/cm-su
+per/sfss0500.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfss0600.pf
+b></usr/share/texmf-dist/fonts/type1/public/cm-super/sfss0700.pfb></usr/share/t
+exmf-dist/fonts/type1/public/cm-super/sfss0900.pfb></usr/share/texmf-dist/fonts
+/type1/public/cm-super/sfss1000.pfb></usr/share/texmf-dist/fonts/type1/public/c
+m-super/sfss1200.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfss144
+0.pfb></usr/share/texmf-dist/fonts/type1/public/cm-super/sfsx0700.pfb></usr/sha
+re/texmf-dist/fonts/type1/public/cm-super/sfsx1000.pfb></usr/share/texmf-dist/f
+onts/type1/public/cm-super/sfsx1200.pfb></usr/share/texmf-dist/fonts/type1/publ
+ic/cm-super/sftt1000.pfb>
+Output written on main.pdf (22 pages, 887948 bytes).
 PDF statistics:
- 875 PDF objects out of 1000 (max. 8388607)
- 730 compressed objects within 8 object streams
- 57 named destinations out of 1000 (max. 500000)
+ 816 PDF objects out of 1000 (max. 8388607)
+ 678 compressed objects within 7 object streams
+ 55 named destinations out of 1000 (max. 500000)
  188 words of extra memory for PDF output out of 10000 (max. 10000000)
 

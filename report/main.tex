@@ -39,7 +39,7 @@
 \begin{document}
 	
 	% --- SLIDE 1: Titolo [cite: 1] ---
-	\begin{frame}
+	\begin{frame}[plain, noframenumbering]
 		\titlepage
 	\end{frame}
 	
@@ -66,8 +66,11 @@
 		Studying the plots and the correlations among features, lead us to make important assumptions on the geometry of the data.
 	\end{frame}
 	
-	% --- SLIDE: Monk Methodology (Aggiornata) ---
+	% --- SLIDE 3: Monk Methodology (Aggiornata) ---
 	\begin{frame}{2. MONK: Method \& Validation}
+		\textbf{Libraries used:} PyTorch, sklearn
+		\vspace{0.3cm}
+		
 		\textbf{Model Selection Strategy:}
 		\begin{itemize}
 			\item \textbf{Validation Schema:} \textbf{5-Fold Cross Validation} was used for hyperparameter tuning to ensure robustness.
@@ -82,12 +85,13 @@
 			\item \textbf{Learning Rate $\eta$:} $0.01, 0.05, 0.1, 0.2, 0.3$ \quad \textbf{Momentum $\alpha$:} $0.2 - 0.9$
 			\item \textbf{Regularization $\lambda$:} $0, 8\cdot10^{-5}, 10^{-4}, 10^{-3}, 10^{-2}$
 			\item \textbf{Epochs:} \(50, 100, 150, 200, 300, 500, 600, 1000\)
+			\item \textbf{Initialization: } Xavier for tanh, kaimig uniform otherwise.
 		\end{itemize}
 		
 		This grid-search took about 2 hours to run.
 	\end{frame}
 	
-	% --- SLIDE: Monk Results Table (Tutti i task) ---
+	% --- SLIDE 4: Monk Results Table (Tutti i task) ---
 	\begin{frame}{3.1 MONK Results: Summary Table}
 		\begin{table}[]
 			\centering
@@ -106,10 +110,12 @@
 					\bottomrule
 				\end{tabular}
 			}
+			\caption{Table of results for MONKS}
 		\end{table}
 		\vspace{0.2cm}
 	\end{frame}
 	
+	% --- SLIDE 5: Monk learning curves--
 	\begin{frame}{3.2 MONK 1 Results: Learning Curves}
 		\begin{columns}
 			\column{0.5\textwidth}
@@ -132,11 +138,9 @@
 			\end{figure}
 			
 		\end{columns}
-		\vspace{0.2cm}
-		\centering
-		\small \textit{Perfect convergence achieved with Tanh activation and $[10]$ hidden units.}
 	\end{frame}
-	% --- SLIDE: Monk 2 Plots (L'esempio perfetto) ---
+	
+	% --- SLIDE 6: Monk learning curves--
 	\begin{frame}{3.3 MONK 2 Results: Learning Curves}
 		\begin{columns}
 			\column{0.5\textwidth}
@@ -156,13 +160,11 @@
 			\label{fig:acc-monks2}
 		\end{figure}
 		\end{columns}
-		\vspace{0.2cm}
-		\centering
-		\small \textit{Perfect convergence achieved with Tanh activation and $[10]$ hidden units.}
+
 	\end{frame}
 	
-	% --- SLIDE: Monk 3 Plots (L'effetto della regolarizzazione) ---
-	\begin{frame}{3.4 MONK 3 Results}
+	% --- SLIDE 7: Monk learning curves---
+	\begin{frame}{3.4 MONK 3 Results: Learning Curves}
 		\begin{columns}
 			\column{0.5\textwidth}
 			\centering
@@ -185,7 +187,8 @@
 		\centering
 		\small \textit{Note: TS Accuracy (Blue) surpasses TR Accuracy (Red), indicating successful noise handling.}
 	\end{frame}
-	% --- SLIDE 6: CUP Method - Overview ---
+	
+	% --- SLIDE 8: CUP Method - Overview ---
 	\begin{frame}{4. CUP: From Naive to Geometric}
 		\textbf{Initial Approaches (Failed):}
 		\begin{itemize}
@@ -207,12 +210,12 @@
 			
 	\end{frame}
 	
-	% --- SLIDE 7: CUP - The Geometry ---
+	% --- SLIDE 9: CUP - The Geometry ---
 	\begin{frame}{4.1 CUP: new discoveries}
 		We also found a strong linear correlation between \(z\) and inputs, especially if we took the first principal component. From this point on, we focused on predicting \(z\).
 		\begin{itemize}
 			\item Linear Regression on $z$ using inputs failed (MAE $\approx 1$).
-			\item using NN, Random Forest, SVR failed
+			\item using NN,  Random Forest, SVR failed
 			\item k-NN did not fail (MAE \(\approx 0.8\), still not enough but better)
 		\end{itemize}
 		
@@ -223,7 +226,7 @@
 		But after some time the pseudo-success of k-NN gave us an idea: "Maybe the manifold has some local structure which is predictable, but that can not  be seen if looking at the whole picture".
 	\end{frame}
 	
-	% --- SLIDE 8: CUP - Intermediate Models ---
+	% --- SLIDE 10: CUP - Intermediate Models ---
 	\begin{frame}{4.2 CUP: Other geometric discoveries}
 	That idea lead us to zoom on the plot of z against other variables, and what we found was very good.
 		\begin{figure}
@@ -238,7 +241,7 @@
 		
 	\end{frame}
 	
-	% --- SLIDE 9: CUP - Spectral Analysis ---
+	% --- SLIDE 11: CUP - Spectral Analysis ---
 	\begin{frame}{4.3 CUP: The inverse idea}
 		Noticing that there seemed to be a relationship of the kind pc2\(=f(z)\), made us think about reversing the process of prediction.
 		We train a model to predict a certain representation of the input and then we try to invert the process to get the correct \(z\).
@@ -247,13 +250,14 @@
 		\textbf{Random Forest (Inverse Model):}
 		\begin{itemize}
 			\item Idea: Train $RF(z) \to \text{First K Principal Components of } x$.
-			\item Result: MEE dropped to $\approx 12$ with \(K=6\).
+			\item Result: MEE dropped to $\approx 12$ with \(K=6\)  and 1000 estimators.
 			\item \textit{Limitation:} Worked well only in dense data regions. Needed a continuous function representation.
 		\end{itemize}
 		
 		
 	\end{frame}
 	
+	% --- SLIDE 12: CUP - Spectral Analysis --
 	\begin{frame}{4.4 CUP: The residual analysis}
 		After some time spent trying to improve the models above, we noticed that other principal components seemed to be oscillating, so our intuition was: "Maybe every input has an oscillating component apart from the linear one...".
 		
@@ -280,7 +284,8 @@
 		
 	\end{columns}
 	\end{frame}
-	% --- SLIDE 10: CUP - Final Model Architecture ---
+	
+	% --- SLIDE 13: CUP - Final Model Architecture ---
 	\begin{frame}{4.4 CUP: LBE Inverse Solver}
 		We model each input $x_i$ as a function of $z$ using \textbf{Linear Basis Expansion (LBE)}:
 		$$ \hat{x}_i(z) = c_{i,0} z + \sum_{k=1}^{K} \left( a_{i,k} \sin(k \omega z) + b_{i,k} \cos(k \omega z) \right) $$
@@ -293,7 +298,7 @@
 		\end{itemize}
 	\end{frame}
 	
-	% --- SLIDE 11: CUP - Inference Algorithm ---
+	% --- SLIDE 14: CUP - Inference Algorithm ---
 	\begin{frame}{4.5 CUP: Inference (Finding $z$)}
 		To predict $z_{pred}$ given a new input vector $\mathbf{x}_{new}$:
 		
@@ -310,7 +315,7 @@
 		\end{enumerate}
 	\end{frame}
 
-		% --- SLIDE 12: CUP - Refinement via pc2 ---
+		% --- SLIDE 15: CUP - Refinement via pc2 ---
 	\begin{frame}{4.6 CUP: Refining $z$ with pc2}
 		We refine the coarse estimate $z_{init}$ by exploiting the empirical relation $pc2 \approx f(z)$:
 		\begin{itemize}
@@ -325,7 +330,7 @@
 		\end{figure}
 	\end{frame}
 
-	% --- SLIDE 13: CUP - Ensemble z_ens ---
+	% --- SLIDE 16: CUP - Ensemble z_ens ---
 	\begin{frame}{4.7 CUP: Ensemble $z_{ens}$}
 		We combine two estimates when they agree:
 		\begin{itemize}
@@ -350,7 +355,7 @@
 		$z_{refined}$ is the value given by the LBE inverse solver, and $z_{forest\_refined}$ is the value given by a random forest model. This last model has higher MEE, so we give it low weight, and we use it only when we estimate it's accurate enough (i.e., close to $z_{refined}$).
 	\end{frame}
 	
-	% --- SLIDE 12: CUP - Validation Schema ---
+	% --- SLIDE 17: CUP - Validation Schema ---
 	\begin{frame}{5.1 CUP: Validation Schema [*]}
 		\textbf{Data Splitting:}
 		\begin{itemize}
@@ -365,7 +370,7 @@
 		\end{center}
 	\end{frame}
 	
-	% --- SLIDE 13: CUP - Model Selection ---
+	% --- SLIDE 18: CUP - Model Selection ---
 	\begin{frame}{5.2 CUP: Model Selection [*]}
 		\textbf{Hyperparameters Explored:}
 		\begin{itemize}
@@ -381,7 +386,7 @@
 		\end{itemize}
 	\end{frame}
 	
-	% --- SLIDE 14: CUP - Final Results Table ---
+	% --- SLIDE 19: CUP - Final Results Table ---
 	\begin{frame}{5.3 CUP: Final Results [*]}
 		\textbf{Model:} Geometric Inverse Solver (LBE + Newton Refinement)
 		
@@ -403,7 +408,7 @@
 		\textbf{Hardware:} Standard CPU (No GPU required).
 	\end{frame}
 	
-	% --- SLIDE 15: CUP - Error Plots ---
+	% --- SLIDE 20: CUP - Error Plots ---
 	\begin{frame}{5.4 CUP: Error Analysis [*]}
 		\begin{columns}
 			\column{0.5\textwidth}
@@ -418,41 +423,6 @@
 			\fbox{\begin{minipage}[c][4cm]{5cm} \centering Insert Plot: \\ Predicted vs True $z$ \\ (Parity Plot) \end{minipage}}
 			%\caption{Reconstruction of $z$}
 		\end{columns}
-	\end{frame}
-	
-	% --- SLIDE 16: Discussion - Insights ---
-	\begin{frame}{6. Discussion: Why this works?}
-		\textbf{Geometric Insight vs "Black Box":}
-		\begin{itemize}
-			\item Neural Networks struggled because the mapping $x \to y$ is highly sensitive to noise in $x$ without explicit knowledge of the constraint $z$.
-			\item The \textbf{Inverse Approach} ($z \to x$) exploits the fact that $x$ is generated from $z$.
-			\item By filtering inputs based on their "reliability" (weights $w_i$), we ignore noisy dimensions and focus on those that strongly correlate with the manifold.
-		\end{itemize}
-		
-		\textbf{Novelty Impact:}
-		\begin{itemize}
-			\item MEE reduction from $\approx 20$ (Naive) to $\mathbf{8.5}$ (Geometric).
-		\end{itemize}
-	\end{frame}
-	
-	% --- SLIDE 17: Discussion - Robustness ---
-	\begin{frame}{6.1 Discussion: Robustness \& Generalization}
-		\textbf{Leakage Check:}
-		\begin{itemize}
-			\item Geometric dependencies were verified on strict subsets of data. The equations hold universally.
-		\end{itemize}
-		
-		\textbf{Efficiency:}
-		\begin{itemize}
-			\item The model is extremely lightweight (only storing coefficients for LBE).
-			\item Newton refinement converges in 3-5 iterations.
-		\end{itemize}
-		
-		\textbf{Critical Remarks:}
-		\begin{itemize}
-			\item Performance is bound by the noise level of the "cleanest" inputs.
-			\item The model assumes the test set follows the same geometric generation process (which is true for CUP).
-		\end{itemize}
 	\end{frame}
 	
 	% --- SLIDE 18: Conclusions ---
