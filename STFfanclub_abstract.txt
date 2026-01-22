@@ -1,0 +1,1 @@
+In order to reduce the MEE on the CUP challenge, we used some geometric properties of the input. We realized that all the outputs are a function of a single parameter, which can be estimated by approximating the outputs with linear combinations of the inputs and some trigonometric functions of the inputs. By also using an ensemble with a random forest model, we reached MEE ~ 8.5.

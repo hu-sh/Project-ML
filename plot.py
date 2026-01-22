@@ -1,9 +1,9 @@
-import argparse
 import re
 import time
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -13,7 +13,6 @@ from scipy.optimize import minimize
 
 
 FILE_PATH = "data/CUP/ML-CUP25-TR.csv"
-TS_FILE_PATH = "data/CUP/ML-CUP25-TS.csv"
 FIT_PATH = "fit.txt"
 W_THEORETICAL = (1 + 1 / np.sqrt(2)) / 3
 LAMBDA_SWEEP = [1.0]
@@ -23,6 +22,7 @@ K_SSD = 100
 N_COMPONENTS = 6
 GAMMA = 0.1
 ALPHA_THRESHOLD = 1.5
+GAMMA_GRID = np.linspace(0.0, 0.5, 51)
 
 
 def calculate_mee(y_true, y_pred):
@@ -203,21 +203,6 @@ def select_best_lambda(z_init, pc2_train, Y_train, T, const, terms, z_min, z_max
     return best[1]
 
 
-def write_submission(output_path, ids, y_pred, team_name, members, submission_date):
-    header_lines = [
-        f"# {members}",
-        f"# {team_name}",
-        "# ML-CUP25",
-        f"# {submission_date}",
-    ]
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(header_lines) + "\n")
-        for row_id, y in zip(ids, y_pred):
-            f.write(
-                f"{int(row_id)},{y[0]:.10f},{y[1]:.10f},{y[2]:.10f},{y[3]:.10f}\n"
-            )
-
-
 def run_cv():
     df = pd.read_csv(FILE_PATH, comment="#", header=None)
     X = df.iloc[:, 1:13].values
@@ -226,7 +211,7 @@ def run_cv():
 
     T, const, terms = parse_fit(FIT_PATH)
 
-    random_state = 54
+    random_state = 56
     print(f"random_state: {random_state}")
     kf = KFold(n_splits=5, shuffle=True, random_state=random_state)
 
@@ -447,134 +432,53 @@ def run_cv():
     print(f"  MEE z_ens:               {total_mee_ens:.6f}")
     print(f"  MEE z_ens_refined:       {total_mee_ens_refined:.6f}")
 
+    diffs_all = np.abs(all_z_recovered_refined - all_z_forest_refined)
+    y_pred_rec = reconstruct_targets(all_z_recovered_refined)
+    err_rec = np.sqrt(np.sum((all_y_val - y_pred_rec) ** 2, axis=1))
+    z_avg_fixed = (1.0 - GAMMA) * all_z_recovered_refined + GAMMA * all_z_forest_refined
+    y_pred_avg_fixed = reconstruct_targets(z_avg_fixed)
+    err_avg_fixed = np.sqrt(np.sum((all_y_val - y_pred_avg_fixed) ** 2, axis=1))
 
-def run_predict(team_name, members, submission_date, output_path=None):
-    df = pd.read_csv(FILE_PATH, comment="#", header=None)
-    X = df.iloc[:, 1:13].values
-    Y = df.iloc[:, 13:17].values
-    z_all = Y[:, 2] - Y[:, 3]
+    order = np.argsort(diffs_all)
+    diffs_sorted = diffs_all[order]
+    delta_sorted = (err_avg_fixed - err_rec)[order]
+    delta_cumsum = np.cumsum(delta_sorted)
+    base_sum = float(np.sum(err_rec))
 
-    T, const, terms = parse_fit(FIT_PATH)
+    alphas = diffs_sorted
+    mee_alpha = (base_sum + delta_cumsum) / len(err_rec)
 
-    weights, coefs_mat, intercepts, z_grid, grid_preds, z_min, z_max = train_harmonic_forward(
-        X, z_all
-    )
-    z_recovered, z_init = recover_z_harmonic(
-        X, z_grid, grid_preds, coefs_mat, intercepts, weights, z_min, z_max
-    )
+    mee_gamma = []
+    for gamma in GAMMA_GRID:
+        use_weighted = diffs_all < ALPHA_THRESHOLD
+        z_ens_gamma = np.where(
+            use_weighted,
+            (1.0 - gamma) * all_z_recovered_refined + gamma * all_z_forest_refined,
+            all_z_recovered_refined,
+        )
+        y_pred_gamma = reconstruct_targets(z_ens_gamma)
+        err_gamma = np.sqrt(np.sum((all_y_val - y_pred_gamma) ** 2, axis=1))
+        mee_gamma.append(float(np.mean(err_gamma)))
 
-    scaler_pc2, pca_pc2, pc2_train = fit_pc2_model(X)
-    best_lam = select_best_lambda(z_init, pc2_train, Y, T, const, terms, z_min, z_max)
-    z_recovered_refined = np.array(
-        [
-            refine_z_reg(z0, pc2, T, const, terms, z_min, z_max, best_lam)
-            for z0, pc2 in zip(z_recovered, pc2_train)
-        ]
-    )
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].plot(alphas, mee_alpha)
+    axes[0].set_title("MEE vs alpha (all thresholds)")
+    axes[0].set_xlabel("alpha")
+    axes[0].set_ylabel("MEE")
+    axes[0].grid(True, alpha=0.3)
 
-    scaler_rf, pca_rf, z_grid_rf, X_grid_pca_pred, z_min_rf, z_max_rf = train_rf_pca_inversion(
-        X, z_all
-    )
-    pc2_train_rf = transform_pc2(X, scaler_rf, pca_rf)
-    z_forest_train = recover_z_rf(X, scaler_rf, pca_rf, z_grid_rf, X_grid_pca_pred)
-    best_lam_forest = select_best_lambda(
-        z_forest_train, pc2_train_rf, Y, T, const, terms, z_min_rf, z_max_rf
-    )
-    z_forest_refined = np.array(
-        [
-            refine_z_reg(z0, pc2, T, const, terms, z_min_rf, z_max_rf, best_lam_forest)
-            for z0, pc2 in zip(z_forest_train, pc2_train_rf)
-        ]
-    )
-    diffs_train = np.abs(z_recovered_refined - z_forest_refined)
-    use_weighted_train = diffs_train < ALPHA_THRESHOLD
-    z_ens_train = np.where(
-        use_weighted_train,
-        (1.0 - GAMMA) * z_recovered_refined + GAMMA * z_forest_refined,
-        z_recovered_refined,
-    )
-    z_ens_refined_train = np.array(
-        [
-            refine_z_reg(z0, pc2, T, const, terms, z_min, z_max, best_lam)
-            for z0, pc2 in zip(z_ens_train, pc2_train)
-        ]
-    )
-    mee_recovered = calculate_mee(Y, reconstruct_targets(z_recovered))
-    mee_refined = calculate_mee(Y, reconstruct_targets(z_recovered_refined))
-    mee_forest_refined = calculate_mee(Y, reconstruct_targets(z_forest_refined))
-    mee_ens_refined = calculate_mee(Y, reconstruct_targets(z_ens_refined_train))
+    axes[1].plot(GAMMA_GRID, mee_gamma, marker="o", color="tab:orange")
+    axes[1].set_title("MEE vs gamma")
+    axes[1].set_xlabel("gamma")
+    axes[1].set_ylabel("MEE")
+    axes[1].grid(True, alpha=0.3)
 
-    df_ts = pd.read_csv(TS_FILE_PATH, comment="#", header=None)
-    ids = df_ts.iloc[:, 0].values
-    X_ts = df_ts.iloc[:, 1:13].values
-
-    z_ts_recovered, _ = recover_z_harmonic(
-        X_ts, z_grid, grid_preds, coefs_mat, intercepts, weights, z_min, z_max
-    )
-    pc2_ts = transform_pc2(X_ts, scaler_pc2, pca_pc2)
-    z_ts_recovered_refined = np.array(
-        [
-            refine_z_reg(z0, pc2, T, const, terms, z_min, z_max, best_lam)
-            for z0, pc2 in zip(z_ts_recovered, pc2_ts)
-        ]
-    )
-
-    z_ts_forest = recover_z_rf(X_ts, scaler_rf, pca_rf, z_grid_rf, X_grid_pca_pred)
-    pc2_ts_rf = transform_pc2(X_ts, scaler_rf, pca_rf)
-    z_ts_forest_refined = np.array(
-        [
-            refine_z_reg(z0, pc2, T, const, terms, z_min_rf, z_max_rf, best_lam_forest)
-            for z0, pc2 in zip(z_ts_forest, pc2_ts_rf)
-        ]
-    )
-
-    diffs = np.abs(z_ts_recovered_refined - z_ts_forest_refined)
-    use_weighted = diffs < ALPHA_THRESHOLD
-    z_ts_ens = np.where(
-        use_weighted,
-        (1.0 - GAMMA) * z_ts_recovered_refined + GAMMA * z_ts_forest_refined,
-        z_ts_recovered_refined,
-    )
-    z_ts_ens_refined = np.array(
-        [
-            refine_z_reg(z0, pc2, T, const, terms, z_min, z_max, best_lam)
-            for z0, pc2 in zip(z_ts_ens, pc2_ts)
-        ]
-    )
-
-    y_pred = reconstruct_targets(z_ts_ens_refined)
-    if output_path is None:
-        output_path = f"{team_name}_ML-CUP25-TS.csv"
-    write_submission(output_path, ids, y_pred, team_name, members, submission_date)
-    print("Training MEE:")
-    print(f"  MEE z_recovered:         {mee_recovered:.6f}")
-    print(f"  MEE z_recovered_refined: {mee_refined:.6f}")
-    print(f"  MEE z_forest_refined:    {mee_forest_refined:.6f}")
-    print(f"  MEE z_ens_refined:       {mee_ens_refined:.6f}")
-    print(f"Wrote submission: {output_path}")
+    fig.tight_layout()
+    fig.savefig("plots/mee_alpha_gamma.png", dpi=150)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ML-CUP25 final pipeline")
-    parser.add_argument("--predict", action="store_true", help="Generate TS submission file")
-    parser.add_argument("--team-name", default="TeamName", help="Team name for submission")
-    parser.add_argument(
-        "--members",
-        default="Name1 Surname1, Name2 Surname2, Name3 Surname3",
-        help="Comma-separated team member names",
-    )
-    parser.add_argument(
-        "--date",
-        default=time.strftime("%d/%m/%Y"),
-        help="Submission date (DD/MM/YYYY)",
-    )
-    parser.add_argument("--output", default=None, help="Output file path")
-    args = parser.parse_args()
-
-    if args.predict:
-        run_predict(args.team_name, args.members, args.date, args.output)
-    else:
-        run_cv()
+    run_cv()
 
 
 if __name__ == "__main__":

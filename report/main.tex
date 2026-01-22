@@ -1,4 +1,5 @@
-\documentclass[aspectratio=169, 10pt]{beamer}
+\documentclass[aspectratio=169, 14pt]{beamer}
+\geometry{paperwidth=20cm,paperheight=11.25cm}
 
 % Pacchetti fondamentali
 \usepackage[utf8]{inputenc}
@@ -24,7 +25,7 @@
 \author[TODO]{
 	Authors: Davide Petillo, Valerio Stancanelli \\
 	\medskip
-	\small{TODO} \\
+	\small{STFfanclub} \\
 	\medskip
 	\small{Master degree (AI, Data Science)}  \\
 	\small{\href{mailto:d.petillo@studenti.unipi.it}{d.petillo@studenti.unipi.it}} \\
@@ -94,6 +95,7 @@
 	% --- SLIDE 4: Monk Results Table (Tutti i task) ---
 	\begin{frame}{3.1 MONK Results: Summary Table}
 		\begin{table}[]
+			\caption{CUP performance summary.}
 			\centering
 			\resizebox{\textwidth}{!}{
 				\begin{tabular}{l|l|c|c}
@@ -231,9 +233,9 @@
 	That idea lead us to zoom on the plot of z against other variables, and what we found was very good.
 		\begin{figure}
 		\centering
-		\includegraphics[width=\textwidth, height=5cm, keepaspectratio]{z-pc2.png}
 		\includegraphics[width=\textwidth, height=5cm, keepaspectratio]{z-pc1.png}
-		\caption{Plot of \(z\) against PC1 and PC2}
+		\includegraphics[width=\textwidth, height=5cm, keepaspectratio]{z-pc2.png}
+		\caption{Plot of \(z\) against PC1 (left) and PC2 (right)}
 		\label{fig:z-PC1-PC2}
 		\end{figure}
 		
@@ -298,8 +300,8 @@
 		\end{itemize}
 	\end{frame}
 	
-	% --- SLIDE 14: CUP - Inference Algorithm ---
-	\begin{frame}{4.5 CUP: Inference (Finding $z$)}
+	% --- SLIDE 14: CUP - Inference + Refinement ---
+	\begin{frame}{4.5 CUP: Inference and Refinement}
 		To predict $z_{pred}$ given a new input vector $\mathbf{x}_{new}$:
 		
 		\begin{enumerate}
@@ -313,25 +315,12 @@
 			\item \textbf{Target Reconstruction:}
 			Compute $y_1, y_2, y_3, y_4$ using the geometric equations (Slide 8) with the refined $z$.
 		\end{enumerate}
-	\end{frame}
 
-		% --- SLIDE 15: CUP - Refinement via pc2 ---
-	\begin{frame}{4.6 CUP: Refining $z$ with pc2}
-		We refine the coarse estimate $z_{init}$ by exploiting the empirical relation $pc2 \approx f(z)$:
-		\begin{itemize}
-			\item compute $pc2$ from the input via PCA
-			\item refine $z$ by minimizing $(f(z)-pc2)^2 + \lambda (z-z_{init})^2$
-			\item obtain $z_{refined}$ used for final target reconstruction
-		\end{itemize}
-		\begin{figure}
-			\centering
-			\includegraphics[width=\textwidth, height=4cm, keepaspectratio]{z-pc2.png}
-			\caption{Relationship between $z$ and $pc2$ used for refinement.}
-		\end{figure}
+		\textbf{pc2 refinement:} estimate $pc2$ via PCA and minimize $(f(z)-pc2)^2 + \lambda (z-z_{init})^2$ to obtain $z_{refined}$.
 	\end{frame}
 
 	% --- SLIDE 16: CUP - Ensemble z_ens ---
-	\begin{frame}{4.7 CUP: Ensemble $z_{ens}$}
+	\begin{frame}{4.6 CUP: Ensemble $z_{ens}$}
 		We combine two estimates when they agree:
 		\begin{itemize}
 			\item if $|z_{refined} - z_{forest\_refined}| < \alpha$, use their weighted average
@@ -341,53 +330,75 @@
 			\column{0.5\textwidth}
 			\begin{figure}
 				\centering
-				\includegraphics[width=\textwidth, height=3cm, keepaspectratio]{alpha_vs_mee_gamma_0.1.png}
-				\caption{MEE vs $\alpha$ for averaging.}
-			\end{figure}
-			\column{0.5\textwidth}
-			\begin{figure}
-				\centering
-				\includegraphics[width=\textwidth, height=3cm, keepaspectratio]{abs_z_error_z_refined_vs_z_forest_refined.png}
+				\includegraphics[width=\textwidth, height=4cm, keepaspectratio]{abs_z_error_z_refined_vs_z_forest_refined.png}
 				\caption{Error comparison: $z_{refined}$ vs $z_{forest\_refined}$.}
 			\end{figure}
+			\column{0.5\textwidth}
+			$z_{refined}$ is the value given by the LBE inverse solver, and $z_{forest\_refined}$ is the value given by a random forest model. This last model has higher MEE, so we give it low weight, and we use it only when we estimate it's accurate enough (i.e., close to $z_{refined}$).
 		\end{columns}
-
-		$z_{refined}$ is the value given by the LBE inverse solver, and $z_{forest\_refined}$ is the value given by a random forest model. This last model has higher MEE, so we give it low weight, and we use it only when we estimate it's accurate enough (i.e., close to $z_{refined}$).
 	\end{frame}
 	
 	% --- SLIDE 17: CUP - Validation Schema ---
-	\begin{frame}{5.1 CUP: Validation Schema [*]}
+	\begin{frame}{5.1 CUP: Validation Schema}
 		\textbf{Data Splitting:}
 		\begin{itemize}
-			\item \textbf{5-Fold Cross Validation} used for Model Assessment and Hyperparameter tuning.
-			\item Rationale: Maximized the use of data to capture the geometric manifold across the entire domain.
-			\item \textbf{Internal Test Set:} Not used (All provided data used for CV to ensure manifold coverage). Blind test performance is the ultimate validation.
+			\item \textbf{Internal Test Set:} 10\% of the full training set is held out.
+			\item \textbf{Cross Validation:} 5-fold CV is run on the remaining 90\% for model selection.
+			\item \textbf{Final Evaluation:} selected hyperparameters are evaluated once on the internal test set.
 		\end{itemize}
 		
 		\begin{center}
-			\textit{(Graphic representation of 5-Fold CV)} \\
+			\textit{(Graphic representation of 5-Fold CV on 90\%)} \\
 			\fbox{Fold 1 (VL)} \fbox{Fold 2 (TR)} \fbox{Fold 3 (TR)} \fbox{Fold 4 (TR)} \fbox{Fold 5 (TR)} ...
 		\end{center}
 	\end{frame}
 	
 	% --- SLIDE 18: CUP - Model Selection ---
-	\begin{frame}{5.2 CUP: Model Selection [*]}
-		\textbf{Hyperparameters Explored:}
+	\begin{frame}{5.2 CUP: Model Selection}
+		\textbf{Hyperparameters Tuned (Grid Search):}
 		\begin{itemize}
-			\item \textbf{Grid Search Resolution:} Step sizes for $z$ scan (0.1, 0.01, 0.001).
-			\item \textbf{Number of Harmonics:} Tried 4, 6, 8, 10. Selected \textbf{6} (Minimizes VL MEE).
-			\item \textbf{Fundamental Frequency $\omega$:} Optimized via gradient descent on residuals, fixed at \textbf{0.57}.
+			\item \textbf{Refinement $\lambda$:} regularization for $z$ refinement via $pc2$.
+			\item \textbf{Ensemble weight $\gamma$:} mixing coefficient between $z_{refined}$ and $z_{forest\_refined}$.
+			\item \textbf{Agreement threshold $\alpha$:} decides when the ensemble average is used.
 		\end{itemize}
 		
-		\textbf{Final Selection Criteria:}
+		\textbf{Selection Criterion:}
 		\begin{itemize}
-			\item Model selected based on stability of the inverse mapping (low variance in CV folds).
-			\item Robustness check: Verified on data subsets to ensure no leakage.
+			\item pick the combination with the lowest average MEE across CV folds.
 		\end{itemize}
+
+		\textbf{Grid Search:}
+		\begin{itemize}
+			\item $\lambda$ $\in$ \{0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0\}
+			\item $\gamma$ $\in$ \{0.05, 0.1, 0.15, 0.2, 0.3\}
+			\item $\alpha$ $\in$ \{0.3, 0.6, 1.0, 1.5, 2.0, 3.0\}
+		\end{itemize}
+
+		The best hyperparameters found (with lowest MEE on the validation set) are the following: $\lambda = 1.0$, $\gamma = 0.1$, $\alpha = 1.5$. This model clearly outperforms the other models we have tried.
+	\end{frame}
+	
+	% --- SLIDE 19: CUP - Grid Search Summary ---
+	\begin{frame}{5.2.1 CUP: Grid Search Summary}
+		\textbf{Total combinations:} 300
+		\begin{table}[]
+			\centering
+			\begin{tabular}{c|c|c|c|c|c|c}
+				\toprule
+				\textbf{Rank} & $\lambda$ & $\gamma$ & $\alpha$ & \textbf{Train (avg $\pm$ std)} & \textbf{Val (avg $\pm$ std)} & \textbf{Test (avg)} \\
+				\midrule
+				1 & 1.00 & 0.10 & 1.50 & 6.62 $\pm$ 0.33 & 8.48 $\pm$ 0.97 & 7.84 \\
+				2 & 1.00 & 0.10 & 3.00 & 6.63 $\pm$ 0.33 & 8.49 $\pm$ 0.99 & 7.87 \\
+				5 & 1.00 & 0.15 & 1.00 & 6.55 $\pm$ 0.32 & 8.53 $\pm$ 1.06 & 7.82 \\
+				20 & 2.00 & 0.10 & 1.00 & 6.40 $\pm$ 0.29 & 8.56 $\pm$ 0.96 & 7.73 \\
+				60 & 5.00 & 0.05 & 1.50 & 6.43 $\pm$ 0.31 & 8.65 $\pm$ 0.91 & 7.72 \\
+				300 & 0.02 & 0.30 & 3.00 & 7.79 $\pm$ 0.40 & 9.36 $\pm$ 1.21 & 8.39 \\
+				\bottomrule
+			\end{tabular}
+		\end{table}
 	\end{frame}
 	
 	% --- SLIDE 19: CUP - Final Results Table ---
-	\begin{frame}{5.3 CUP: Final Results [*]}
+	\begin{frame}{5.3 CUP: Final Results}
 		\textbf{Model:} Geometric Inverse Solver (LBE + Newton Refinement)
 		
 		\begin{table}[]
@@ -397,55 +408,45 @@
 				\toprule
 				\textbf{Dataset Partition} & \textbf{MEE (Mean)} & \textbf{Std. Dev} \\
 				\midrule
-				Training (TR) & 8.2 & $\pm 0.8$ \\
-				Validation (VL - 5 Fold CV) & \textbf{8.5} & $\pm \mathbf{1.0}$ \\
+				Training & \textbf{6.620} & $\pm \mathbf{0.328}$ \\
+				Validation & \textbf{8.482} & $\pm \mathbf{0.965}$ \\
+				Internal Test & \textbf{7.843} & -- \\
 				\bottomrule
 			\end{tabular}
+			\caption{CUP performance summary.}
 		\end{table}
 		
 		\vspace{0.5cm}
-		\textbf{Computing Time:} $< 1$ second per sample for inference (highly efficient).
+		\textbf{Computing Time:} approximately one minute in total.
 		\textbf{Hardware:} Standard CPU (No GPU required).
 	\end{frame}
 	
-	% --- SLIDE 20: CUP - Error Plots ---
-	\begin{frame}{5.4 CUP: Error Analysis [*]}
-		\begin{columns}
-			\column{0.5\textwidth}
-			\centering
-			% [PLACEHOLDER]
-			\fbox{\begin{minipage}[c][4cm]{5cm} \centering Insert Plot: \\ Error Distribution (MEE Hist) \end{minipage}}
-			%\caption{MEE Distribution (CV)}
-			
-			\column{0.5\textwidth}
-			\centering
-			% [PLACEHOLDER]
-			\fbox{\begin{minipage}[c][4cm]{5cm} \centering Insert Plot: \\ Predicted vs True $z$ \\ (Parity Plot) \end{minipage}}
-			%\caption{Reconstruction of $z$}
-		\end{columns}
-	\end{frame}
-	
 	% --- SLIDE 18: Conclusions ---
-	\begin{frame}{7. Conclusions}
+	\begin{frame}{6. Conclusions}
 		\textbf{Summary:}
 		\begin{itemize}
 			\item \textbf{MONK:} Confirmed that procedural complexity handling implies success on simpler tasks.
 			\item \textbf{CUP:} Demonstrated that domain analysis (geometry) can vastly outperform black-box optimization. 
-			\item Achieved State-of-the-Art performance (for this project scope) with MEE $\approx 8.5$.
+			\item Achieved a reasonable performance with MEE $\approx 8.5$.
 		\end{itemize}
 		
 		\vspace{1cm}
 		\textbf{Blind Test Results:}
 		\begin{itemize}
-			\item Filename: \texttt{[Surname1\_Surname2]\_CUP\_TS.csv}
-			\item Nickname: \textbf{[Your Nickname]}
+			\item Filename: \texttt{STFfanclub\_ML-CUP25-TS.csv}
+			\item Nickname: \textbf{STFfanclub}
 		\end{itemize}
 	\end{frame}
 	
 	% --- APPENDIX ---
 	\begin{frame}{Appendix A: Additional Plots}
-		\centering
-		\textit{Use this section for extra plots (e.g., Fourier spectrum details, residual plots per variable).}
+		\begin{figure}
+			\centering
+			\includegraphics[width=\textwidth, height=4cm, keepaspectratio]{mee_alpha_gamma.png}
+			\caption{MEE vs $\alpha$ for a fixed $\gamma$, and MEE vs $\gamma$ for a fixed $\alpha$.}
+		\end{figure}
+
+		$z_{forest\_refined}$ has a relatively high MEE, and when it is far from $z_{refined}$ it is most likely wrong. However, we can still improve the final MEE by giving it a low weight and using it only when the two values of $z$ are close to each other.
 	\end{frame}
 	
 	\end{document}

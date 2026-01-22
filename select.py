@@ -1,8 +1,10 @@
+import csv
 import re
 import time
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -13,14 +15,16 @@ from scipy.optimize import minimize
 
 FILE_PATH = "data/CUP/ML-CUP25-TR.csv"
 FIT_PATH = "fit.txt"
+CSV_RESULTS_PATH = "grid_search_results.csv"
+PLOT_RESULTS_PATH = "plots/mee_alpha_gamma_best.png"
 W_THEORETICAL = (1 + 1 / np.sqrt(2)) / 3
 LAMBDA_SWEEP = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 5.0]
 GRID_STEPS = 201
 GRID_SIZE = 5000
 K_SSD = 100
 N_COMPONENTS = 6
-GAMMA_SWEEP = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4]
-ALPHA_SWEEP = [0.05, 0.1, 0.2, 0.3, 0.6, 1.0, 1.5, 2.0, 3.0]
+GAMMA_SWEEP = [0.05, 0.1, 0.15, 0.2, 0.3]
+ALPHA_SWEEP = [0.3, 0.6, 1.0, 1.5, 2.0, 3.0]
 
 
 def calculate_mee(y_true, y_pred):
@@ -220,98 +224,293 @@ def main():
     z_train_full, z_test = z_all[train_idx], z_all[test_idx]
 
     kf = KFold(n_splits=5, shuffle=True, random_state=random_state)
-    folds = []
+    folds_val = []
+    folds_train = []
     for fold_idx, (train_sub_idx, val_idx) in enumerate(kf.split(X_train_full), start=1):
         X_train, X_val = X_train_full[train_sub_idx], X_train_full[val_idx]
         z_train, z_val = z_train_full[train_sub_idx], z_train_full[val_idx]
         Y_train, Y_val = Y_train_full[train_sub_idx], Y_train_full[val_idx]
         print(f"\nPrecomputing fold {fold_idx}...")
-        fold_data = compute_fold_outputs(X_train, X_val, Y_train, Y_val, z_train, z_val, T, const, terms)
-        folds.append(fold_data)
+        fold_val = compute_fold_outputs(
+            X_train, X_val, Y_train, Y_val, z_train, z_val, T, const, terms
+        )
+        fold_train = compute_fold_outputs(
+            X_train, X_train, Y_train, Y_train, z_train, z_train, T, const, terms
+        )
+        folds_val.append(fold_val)
+        folds_train.append(fold_train)
+
+    def summarize_fold_mees(fold_mees):
+        vals = np.asarray(fold_mees, dtype=float)
+        avg = float(np.mean(vals))
+        std = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
+        return avg, std
+
+    def evaluate_params(folds_data, lam, gamma, alpha):
+        fold_mees = []
+        for fold in folds_data:
+            z_recovered_refined = np.array(
+                [
+                    refine_z_reg(
+                        z0,
+                        pc2,
+                        T,
+                        const,
+                        terms,
+                        fold["z_min_ref"],
+                        fold["z_max_ref"],
+                        lam,
+                    )
+                    for z0, pc2 in zip(fold["z_recovered"], fold["pc2_val"])
+                ]
+            )
+            z_forest_refined = np.array(
+                [
+                    refine_z_reg(
+                        z0,
+                        pc2,
+                        T,
+                        const,
+                        terms,
+                        fold["z_min_rf"],
+                        fold["z_max_rf"],
+                        lam,
+                    )
+                    for z0, pc2 in zip(fold["z_forest"], fold["pc2_val_rf"])
+                ]
+            )
+            diffs = np.abs(z_recovered_refined - z_forest_refined)
+            use_weighted = diffs < alpha
+            z_ens = np.where(
+                use_weighted,
+                (1.0 - gamma) * z_recovered_refined + gamma * z_forest_refined,
+                z_recovered_refined,
+            )
+            z_ens_refined = np.array(
+                [
+                    refine_z_reg(
+                        z0,
+                        pc2,
+                        T,
+                        const,
+                        terms,
+                        fold["z_min_ref"],
+                        fold["z_max_ref"],
+                        lam,
+                    )
+                    for z0, pc2 in zip(z_ens, fold["pc2_val"])
+                ]
+            )
+            mee_ens_refined = calculate_mee(
+                fold["Y_val"], reconstruct_targets(z_ens_refined)
+            )
+            fold_mees.append(mee_ens_refined)
+        return fold_mees
+
+    def collect_fold_arrays(folds_data, lam):
+        z_rec_refined_all = []
+        z_for_refined_all = []
+        y_all = []
+        for fold in folds_data:
+            z_rec_refined = np.array(
+                [
+                    refine_z_reg(
+                        z0,
+                        pc2,
+                        T,
+                        const,
+                        terms,
+                        fold["z_min_ref"],
+                        fold["z_max_ref"],
+                        lam,
+                    )
+                    for z0, pc2 in zip(fold["z_recovered"], fold["pc2_val"])
+                ]
+            )
+            z_for_refined = np.array(
+                [
+                    refine_z_reg(
+                        z0,
+                        pc2,
+                        T,
+                        const,
+                        terms,
+                        fold["z_min_rf"],
+                        fold["z_max_rf"],
+                        lam,
+                    )
+                    for z0, pc2 in zip(fold["z_forest"], fold["pc2_val_rf"])
+                ]
+            )
+            z_rec_refined_all.append(z_rec_refined)
+            z_for_refined_all.append(z_for_refined)
+            y_all.append(fold["Y_val"])
+        return (
+            np.concatenate(z_rec_refined_all),
+            np.concatenate(z_for_refined_all),
+            np.vstack(y_all),
+        )
+
+    def mee_vs_alpha(z_rec_refined, z_for_refined, y_true, gamma):
+        diffs = np.abs(z_rec_refined - z_for_refined)
+        y_pred_rec = reconstruct_targets(z_rec_refined)
+        err_rec = np.sqrt(np.sum((y_true - y_pred_rec) ** 2, axis=1))
+        z_avg = (1.0 - gamma) * z_rec_refined + gamma * z_for_refined
+        y_pred_avg = reconstruct_targets(z_avg)
+        err_avg = np.sqrt(np.sum((y_true - y_pred_avg) ** 2, axis=1))
+
+        order = np.argsort(diffs)
+        diffs_sorted = diffs[order]
+        delta_sorted = (err_avg - err_rec)[order]
+        delta_cumsum = np.cumsum(delta_sorted)
+        base_sum = float(np.sum(err_rec))
+        mee_alpha = (base_sum + delta_cumsum) / len(err_rec)
+        return diffs_sorted, mee_alpha
+
+    def mee_vs_gamma(z_rec_refined, z_for_refined, y_true, alpha, gamma_grid):
+        diffs = np.abs(z_rec_refined - z_for_refined)
+        use_weighted = diffs < alpha
+        mee_gamma = []
+        for gamma in gamma_grid:
+            z_ens = np.where(
+                use_weighted,
+                (1.0 - gamma) * z_rec_refined + gamma * z_for_refined,
+                z_rec_refined,
+            )
+            y_pred = reconstruct_targets(z_ens)
+            err = np.sqrt(np.sum((y_true - y_pred) ** 2, axis=1))
+            mee_gamma.append(float(np.mean(err)))
+        return mee_gamma
+
+    fold_test = compute_fold_outputs(
+        X_train_full, X_test, Y_train_full, Y_test, z_train_full, z_test, T, const, terms
+    )
 
     best = None
+    records = []
     print("\nGrid search:")
     for lam in LAMBDA_SWEEP:
         for gamma in GAMMA_SWEEP:
             for alpha in ALPHA_SWEEP:
-                fold_mees = []
-                for fold in folds:
-                    z_recovered_refined = np.array(
-                        [
-                            refine_z_reg(
-                                z0,
-                                pc2,
-                                T,
-                                const,
-                                terms,
-                                fold["z_min_ref"],
-                                fold["z_max_ref"],
-                                lam,
-                            )
-                            for z0, pc2 in zip(fold["z_recovered"], fold["pc2_val"])
-                        ]
-                    )
-                    z_forest_refined = np.array(
-                        [
-                            refine_z_reg(
-                                z0,
-                                pc2,
-                                T,
-                                const,
-                                terms,
-                                fold["z_min_rf"],
-                                fold["z_max_rf"],
-                                lam,
-                            )
-                            for z0, pc2 in zip(fold["z_forest"], fold["pc2_val_rf"])
-                        ]
-                    )
-                    diffs = np.abs(z_recovered_refined - z_forest_refined)
-                    use_weighted = diffs < alpha
-                    z_ens = np.where(
-                        use_weighted,
-                        (1.0 - gamma) * z_recovered_refined + gamma * z_forest_refined,
-                        z_recovered_refined,
-                    )
-                    z_ens_refined = np.array(
-                        [
-                            refine_z_reg(
-                                z0,
-                                pc2,
-                                T,
-                                const,
-                                terms,
-                                fold["z_min_ref"],
-                                fold["z_max_ref"],
-                                lam,
-                            )
-                            for z0, pc2 in zip(z_ens, fold["pc2_val"])
-                        ]
-                    )
-                    mee_ens_refined = calculate_mee(
-                        fold["Y_val"], reconstruct_targets(z_ens_refined)
-                    )
-                    fold_mees.append(mee_ens_refined)
-                avg_mee = float(np.mean(fold_mees))
+                train_mees = evaluate_params(folds_train, lam, gamma, alpha)
+                val_mees = evaluate_params(folds_val, lam, gamma, alpha)
+                test_mees = evaluate_params([fold_test], lam, gamma, alpha)
+                train_avg, train_std = summarize_fold_mees(train_mees)
+                val_avg, val_std = summarize_fold_mees(val_mees)
+                test_avg, _ = summarize_fold_mees(test_mees)
                 print(
-                    "  lambda={:.3f} gamma={:.2f} alpha={:.1f} avg_mee={:.6f}".format(
-                        lam, gamma, alpha, avg_mee
+                    "  lambda={:.3f} gamma={:.2f} alpha={:.2f} avg_mee={:.6f} std_mee={:.6f}".format(
+                        lam, gamma, alpha, val_avg, val_std
                     )
                 )
-                if best is None or avg_mee < best[0]:
-                    best = (avg_mee, lam, gamma, alpha)
+                records.append(
+                    {
+                        "lambda": lam,
+                        "gamma": gamma,
+                        "alpha": alpha,
+                        "train_avg": train_avg,
+                        "train_std": train_std,
+                        "val_avg": val_avg,
+                        "val_std": val_std,
+                        "test_avg": test_avg,
+                    }
+                )
+                if best is None or val_avg < best[0]:
+                    best = (val_avg, val_std, lam, gamma, alpha)
 
-    best_avg, best_lam, best_gamma, best_alpha = best
+    records.sort(key=lambda r: r["val_avg"])
+    with open(CSV_RESULTS_PATH, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "rank",
+                "lambda",
+                "gamma",
+                "alpha",
+                "train_avg",
+                "train_std",
+                "val_avg",
+                "val_std",
+                "test_avg",
+            ]
+        )
+        for idx, r in enumerate(records, start=1):
+            writer.writerow(
+                [
+                    idx,
+                    f"{r['lambda']:.3f}",
+                    f"{r['gamma']:.2f}",
+                    f"{r['alpha']:.2f}",
+                    f"{r['train_avg']:.6f}",
+                    f"{r['train_std']:.6f}",
+                    f"{r['val_avg']:.6f}",
+                    f"{r['val_std']:.6f}",
+                    f"{r['test_avg']:.6f}",
+                ]
+            )
+    print(f"\nWrote grid search CSV: {CSV_RESULTS_PATH}")
+
+    best_avg, best_std, best_lam, best_gamma, best_alpha = best
     print(
-        "\nSelected: lambda={:.3f} gamma={:.2f} alpha={:.2f} avg_mee={:.6f}".format(
-            best_lam, best_gamma, best_alpha, best_avg
+        "\nSelected: lambda={:.3f} gamma={:.2f} alpha={:.2f} avg_mee={:.6f} std_mee={:.6f}".format(
+            best_lam, best_gamma, best_alpha, best_avg, best_std
         )
     )
 
-    print("\nInternal test evaluation:")
-    fold = compute_fold_outputs(
-        X_train_full, X_test, Y_train_full, Y_test, z_train_full, z_test, T, const, terms
+    train_fold_mees = evaluate_params(folds_train, best_lam, best_gamma, best_alpha)
+    train_avg, train_std = summarize_fold_mees(train_fold_mees)
+    val_fold_mees = evaluate_params(folds_val, best_lam, best_gamma, best_alpha)
+    val_avg, val_std = summarize_fold_mees(val_fold_mees)
+    print(
+        "Training (4 folds): avg_mee={:.6f} std_mee={:.6f}".format(train_avg, train_std)
     )
+    print(
+        "Validation (1 fold): avg_mee={:.6f} std_mee={:.6f}".format(val_avg, val_std)
+    )
+
+    train_z_rec, train_z_for, train_y = collect_fold_arrays(
+        folds_train, best_lam
+    )
+    test_z_rec, test_z_for, test_y = collect_fold_arrays([fold_test], best_lam)
+
+    alpha_train, mee_alpha_train = mee_vs_alpha(
+        train_z_rec, train_z_for, train_y, best_gamma
+    )
+    alpha_test, mee_alpha_test = mee_vs_alpha(
+        test_z_rec, test_z_for, test_y, best_gamma
+    )
+
+    gamma_grid = np.linspace(0.0, 0.5, 51)
+    mee_gamma_train = mee_vs_gamma(
+        train_z_rec, train_z_for, train_y, best_alpha, gamma_grid
+    )
+    mee_gamma_test = mee_vs_gamma(
+        test_z_rec, test_z_for, test_y, best_alpha, gamma_grid
+    )
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].plot(alpha_train, mee_alpha_train, label="train")
+    axes[0].plot(alpha_test, mee_alpha_test, label="test")
+    axes[0].set_title("MEE vs alpha (best gamma)")
+    axes[0].set_xlabel("alpha")
+    axes[0].set_ylabel("MEE")
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend()
+
+    axes[1].plot(gamma_grid, mee_gamma_train, marker="o", label="train")
+    axes[1].plot(gamma_grid, mee_gamma_test, marker="o", label="test")
+    axes[1].set_title("MEE vs gamma (best alpha)")
+    axes[1].set_xlabel("gamma")
+    axes[1].set_ylabel("MEE")
+    axes[1].grid(True, alpha=0.3)
+    axes[1].legend()
+
+    fig.tight_layout()
+    fig.savefig(PLOT_RESULTS_PATH, dpi=150)
+    print(f"Wrote MEE plots: {PLOT_RESULTS_PATH}")
+
+    print("\nInternal test evaluation:")
+    fold = fold_test
 
     z_recovered_refined = np.array(
         [
