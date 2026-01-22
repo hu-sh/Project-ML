@@ -12,6 +12,7 @@
 % Il tema "Madrid" o "Boadilla" è pulito e simile allo stile accademico standard
 \usetheme{Boadilla}
 \usecolortheme{beaver} % O 'dolphin'/'default' per toni blu
+\graphicspath{ {./img/} }
 % Personalizzazione colori per avvicinarsi al "Blu Pisa" se desiderato
 \definecolor{UnipiBlue}{RGB}{0, 51, 102} 
 \setbeamercolor{structure}{fg=UnipiBlue}
@@ -95,7 +96,7 @@
 					\toprule
 					\textbf{Task} & \textbf{Best Conf. ($\text{Arch}, \eta, \alpha, \lambda, \text{act}, \text{\#ep}$)} & \textbf{MSE (TR / TS)} & \textbf{Acc (TR / TS) \%} \\
 					\midrule
-					\textbf{MONK 1} & $[10], 0.2, 0.9, 8\text{e-}5, \text{tanh}, 300$ & $2.0\text{e-}3 / 4.2\text{e-}3$ & $\mathbf{100\%} / \mathbf{100\%}$ \\
+					\textbf{MONK 1} & $[20], 0.3, 0.95, 1\text{e-}4, \text{tanh}, 300$ & $0.0013 / 0.0002$ & $\mathbf{100\%} / \mathbf{100\%}$ \\
 					\midrule
 					\textbf{MONK 2} & $[10], 0.05, 0.9, 8\text{e-}5, \text{tanh}, 300$ & $2.5\text{e-}3 / 4.7\text{e-}3$ & $\mathbf{100\%} / \mathbf{100\%}$ \\
 					\midrule
@@ -311,7 +312,7 @@
 		\end{enumerate}
 	\end{frame}
 
-	% --- SLIDE 12: CUP - Refinement via pc2 ---
+		% --- SLIDE 12: CUP - Refinement via pc2 ---
 	\begin{frame}{4.6 CUP: Refining $z$ with pc2}
 		We refine the coarse estimate $z_{init}$ by exploiting the empirical relation $pc2 \approx f(z)$:
 		\begin{itemize}
@@ -330,25 +331,27 @@
 	\begin{frame}{4.7 CUP: Ensemble $z_{ens}$}
 		We combine two estimates when they agree:
 		\begin{itemize}
-			\item if $|z_{refined} - z_{forest\_refined}| < \alpha$, use their average
+			\item if $|z_{refined} - z_{forest\_refined}| < \alpha$, use their weighted average
 			\item otherwise keep $z_{refined}$
 		\end{itemize}
 		\begin{columns}
 			\column{0.5\textwidth}
 			\begin{figure}
 				\centering
-				\includegraphics[width=\textwidth, height=4cm, keepaspectratio]{alpha_vs_mee_gamma_0.1.png}
+				\includegraphics[width=\textwidth, height=3cm, keepaspectratio]{alpha_vs_mee_gamma_0.1.png}
 				\caption{MEE vs $\alpha$ for averaging.}
 			\end{figure}
 			\column{0.5\textwidth}
 			\begin{figure}
 				\centering
-				\includegraphics[width=\textwidth, height=4cm, keepaspectratio]{abs_z_error_z_refined_vs_z_forest_refined.png}
+				\includegraphics[width=\textwidth, height=3cm, keepaspectratio]{abs_z_error_z_refined_vs_z_forest_refined.png}
 				\caption{Error comparison: $z_{refined}$ vs $z_{forest\_refined}$.}
 			\end{figure}
 		\end{columns}
-	\end{frame}
 
+		$z_{refined}$ is the value given by the LBE inverse solver, and $z_{forest\_refined}$ is the value given by a random forest model. This last model has higher MEE, so we give it low weight, and we use it only when we estimate it's accurate enough (i.e., close to $z_{refined}$).
+	\end{frame}
+	
 	% --- SLIDE 12: CUP - Validation Schema ---
 	\begin{frame}{5.1 CUP: Validation Schema [*]}
 		\textbf{Data Splitting:}

@@ -110,14 +110,16 @@ def main():
 
     T, const, terms = parse_fit(FIT_PATH)
 
-    random_state = 49
+    random_state = 53
     print(f"random_state: {random_state}")
     kf = KFold(n_splits=5, shuffle=True, random_state=random_state)
 
     all_z_recovered = []
     all_z_recovered_refined = []
     all_z_forest = []
+    all_z_forest_refined = []
     all_z_ens = []
+    all_z_ens_refined = []
     all_y_val = []
 
     for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X), start=1):
@@ -223,6 +225,8 @@ def main():
         pca_rf = PCA(n_components=N_COMPONENTS)
         X_train_pca_rf = pca_rf.fit_transform(X_train_scaled)
         X_val_pca_rf = pca_rf.transform(X_val_scaled)
+        pc2_train_rf = X_train_pca_rf[:, 1]
+        pc2_val_rf = X_val_pca_rf[:, 1]
 
         model_rf = RandomForestRegressor(n_estimators=2000, n_jobs=-1, random_state=42)
         model_rf.fit(z_train.reshape(-1, 1), X_train_pca_rf)
@@ -231,6 +235,28 @@ def main():
         z_grid_rf = np.linspace(z_min_rf, z_max_rf, 500000)
         X_grid_pca_pred = model_rf.predict(z_grid_rf.reshape(-1, 1))
 
+        z_forest_train = []
+        for i in range(len(X_train)):
+            x_scaled = scaler_rf.transform([X_train[i]])
+            x_pca = pca_rf.transform(x_scaled)[0]
+            dists = np.linalg.norm(X_grid_pca_pred - x_pca, axis=1)
+            z_forest_train.append(z_grid_rf[int(np.argmin(dists))])
+        z_forest_train = np.array(z_forest_train)
+
+        best_lam_forest = None
+        for lam in LAMBDA_SWEEP:
+            z_ref = np.array(
+                [
+                    refine_z_reg(z0, pc2, T, const, terms, z_min_rf, z_max_rf, lam)
+                    for z0, pc2 in zip(z_forest_train, pc2_train_rf)
+                ]
+            )
+            Y_pred_train = reconstruct_targets(z_ref)
+            mee_train = calculate_mee(Y_train, Y_pred_train)
+            if best_lam_forest is None or mee_train < best_lam_forest[0]:
+                best_lam_forest = (mee_train, lam)
+        best_lam_forest = best_lam_forest[1]
+
         z_forest = []
         for i in range(len(X_val)):
             x_scaled = scaler_rf.transform([X_val[i]])
@@ -238,48 +264,72 @@ def main():
             dists = np.linalg.norm(X_grid_pca_pred - x_pca, axis=1)
             z_forest.append(z_grid_rf[int(np.argmin(dists))])
         z_forest = np.array(z_forest)
+        z_forest_refined = np.array(
+            [
+                refine_z_reg(z0, pc2, T, const, terms, z_min_rf, z_max_rf, best_lam_forest)
+                for z0, pc2 in zip(z_forest, pc2_val_rf)
+            ]
+        )
 
         # --- ensemble (conditional weighted average) ---
-        diffs = np.abs(z_recovered_refined - z_forest)
+        diffs = np.abs(z_recovered_refined - z_forest_refined)
         use_weighted = diffs < ALPHA_THRESHOLD
         z_ens = np.where(
             use_weighted,
-            (1.0 - GAMMA) * z_recovered_refined + GAMMA * z_forest,
+            (1.0 - GAMMA) * z_recovered_refined + GAMMA * z_forest_refined,
             z_recovered_refined,
+        )
+        z_ens_refined = np.array(
+            [
+                refine_z_reg(z0, pc2, T, const, terms, z_min_ref, z_max_ref, best_lam)
+                for z0, pc2 in zip(z_ens, pc2_val)
+            ]
         )
 
         mee_recovered = calculate_mee(Y_val, reconstruct_targets(z_recovered))
         mee_refined = calculate_mee(Y_val, reconstruct_targets(z_recovered_refined))
         mee_forest = calculate_mee(Y_val, reconstruct_targets(z_forest))
+        mee_forest_refined = calculate_mee(Y_val, reconstruct_targets(z_forest_refined))
         mee_ens = calculate_mee(Y_val, reconstruct_targets(z_ens))
+        mee_ens_refined = calculate_mee(Y_val, reconstruct_targets(z_ens_refined))
 
         print(f"  MEE z_recovered:         {mee_recovered:.6f}")
         print(f"  MEE z_recovered_refined: {mee_refined:.6f}")
         print(f"  MEE z_forest:            {mee_forest:.6f}")
+        print(f"  MEE z_forest_refined:    {mee_forest_refined:.6f}")
         print(f"  MEE z_ens:               {mee_ens:.6f}")
+        print(f"  MEE z_ens_refined:       {mee_ens_refined:.6f}")
 
         all_z_recovered.append(z_recovered)
         all_z_recovered_refined.append(z_recovered_refined)
         all_z_forest.append(z_forest)
         all_z_ens.append(z_ens)
+        all_z_ens_refined.append(z_ens_refined)
+        all_z_forest_refined.append(z_forest_refined)
         all_y_val.append(Y_val)
 
     all_z_recovered = np.concatenate(all_z_recovered)
     all_z_recovered_refined = np.concatenate(all_z_recovered_refined)
     all_z_forest = np.concatenate(all_z_forest)
+    all_z_forest_refined = np.concatenate(all_z_forest_refined)
     all_z_ens = np.concatenate(all_z_ens)
+    all_z_ens_refined = np.concatenate(all_z_ens_refined)
     all_y_val = np.vstack(all_y_val)
 
     total_mee_recovered = calculate_mee(all_y_val, reconstruct_targets(all_z_recovered))
     total_mee_refined = calculate_mee(all_y_val, reconstruct_targets(all_z_recovered_refined))
     total_mee_forest = calculate_mee(all_y_val, reconstruct_targets(all_z_forest))
+    total_mee_forest_refined = calculate_mee(all_y_val, reconstruct_targets(all_z_forest_refined))
     total_mee_ens = calculate_mee(all_y_val, reconstruct_targets(all_z_ens))
+    total_mee_ens_refined = calculate_mee(all_y_val, reconstruct_targets(all_z_ens_refined))
 
     print("\nTotal:")
     print(f"  MEE z_recovered:         {total_mee_recovered:.6f}")
     print(f"  MEE z_recovered_refined: {total_mee_refined:.6f}")
     print(f"  MEE z_forest:            {total_mee_forest:.6f}")
+    print(f"  MEE z_forest_refined:    {total_mee_forest_refined:.6f}")
     print(f"  MEE z_ens:               {total_mee_ens:.6f}")
+    print(f"  MEE z_ens_refined:       {total_mee_ens_refined:.6f}")
 
 
 if __name__ == "__main__":
