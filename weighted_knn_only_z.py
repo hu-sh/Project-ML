@@ -7,11 +7,10 @@ from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
 from sklearn.linear_model import Ridge
 
-# --- CONFIGURAZIONE ---
 FILENAME = 'data/CUP/ML-CUP25-TR.csv'
-N_PCA_COMPONENTS = 5  # Ottimale per il manifold
-K_NEIGHBORS = 2       # Ottimale per la precisione locale
-RIDGE_ALPHA = 0.0000001   # Regolarizzazione minima
+N_PCA_COMPONENTS = 5  
+K_NEIGHBORS = 2      
+RIDGE_ALPHA = 0.0000001  
 FIT_PATH = 'fit.txt'
 LAMBDA_SWEEP = [0.01, 0.02, 0.05, 0.08, 0.1, 0.12, 0.15, 0.2, 0.3, 0.5]
 Z_ERROR_LOG_PATH = "z_error_sorted.csv"
@@ -95,40 +94,23 @@ def _refine_z_reg(z0, pc2, T, const, terms, z_min, z_max, lam):
 def main():
     print("--- CUP 2025: Physics-Based Reconstruction Model ---")
     
-    # 1. Caricamento Dati
-    try:
-        # skiprows=7 salta l'header testuale
-        df = pd.read_csv(FILENAME, skiprows=7, header=None)
-    except FileNotFoundError:
-        # Fallback se il file è nella directory corrente
-        try:
-            df = pd.read_csv('ML-CUP25-TR.csv', skiprows=7, header=None)
-        except:
-            print("Errore: File dati non trovato.")
-            return
+   df = pd.read_csv(FILENAME, skiprows=7, header=None)
+    
 
-    # Separazione Input (1-12) e Target (13-16)
-    X = df.iloc[:, 1:13].values
     Y_full = df.iloc[:, 13:17].values
 
-    # Calcoliamo il target latente z
-    # z = y3 - y4
     z_target = (Y_full[:, 2] - Y_full[:, 3]).reshape(-1, 1)
 
     print(f"Dataset caricato: {X.shape[0]} campioni.")
 
-    # 2. Split Training / Validation (80/20)
-    # Importante: splittiamo anche Y_full per calcolare il MEE finale
     X_train, X_val, z_train, z_val, Y_train_full, Y_val_full = train_test_split(
         X, z_target, Y_full, test_size=0.2, random_state=47
     )
 
-    # 3. Preprocessing
     scaler = StandardScaler()
     X_train_sc = scaler.fit_transform(X_train)
     X_val_sc = scaler.transform(X_val)
 
-    # 4. Manifold Learning (PCA)
     # Usiamo la PCA solo per calcolare la distanza (trovare i vicini corretti)
     pca = PCA(n_components=N_PCA_COMPONENTS)
     X_train_pca = pca.fit_transform(X_train_sc)
@@ -166,29 +148,21 @@ def main():
     # 7. Ricostruzione Fisica dei Target
     print("Ricostruzione variabili y1, y2, y3, y4 dalle formule fisiche...")
     
-    # Costanti fisiche
     k1 = 0.5463
     k2 = 1.1395
     
     z = z_pred_val
     
-    # Formule dirette
     y1_rec = k1 * z * np.cos(k2 * z)
     y2_rec = k1 * z * np.sin(k2 * z)
     
-    # Sistema inverso per y3, y4
-    # Sappiamo: sum = y3+y4, diff = z
-    # Relazione nota: sum = -diff * cos(2 * diff)
     sum_rec = -z * np.cos(2 * z)
     
     y3_rec = (sum_rec + z) / 2.0
     y4_rec = (sum_rec - z) / 2.0
     
-    # Matrice ricostruita
     Y_pred_reconstructed = np.column_stack([y1_rec, y2_rec, y3_rec, y4_rec])
 
-    # 8. Calcolo MEE Finale (baseline)
-    # Confrontiamo la ricostruzione con i veri target originali (Y_val_full)
     diff = Y_pred_reconstructed - Y_val_full
     mee_final = np.mean(np.linalg.norm(diff, axis=1))
 
@@ -196,7 +170,7 @@ def main():
     print(f"MEE FINALE (Variabili Ricostruite - z KNN): {mee_final:.5f}")
     print(f"--------------------------------------------------")
 
-    # 9. Refinement with pc2 fit + lambda sweep (select best MEE)
+    #  Refinement with pc2 fit + lambda sweep (select best MEE)
     try:
         T, const, terms = _parse_fit(FIT_PATH)
         z_min = float(z_target.min())
@@ -380,7 +354,6 @@ def main():
     except FileNotFoundError:
         print(f"\nFit file not found: {FIT_PATH}. Skipping refinement.")
     
-    # Diagnostica Amplificazione
     print("\nNota Diagnostica:")
     if mee_final > 10 * mae_z:
         print(f"ATTENZIONE: Forte amplificazione dell'errore rilevata.")
