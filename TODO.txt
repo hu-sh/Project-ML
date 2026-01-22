@@ -43,3 +43,106 @@ Nella Loss Function, DE-STANDARDIZZA (inverti la formula) per calcolare i vincol
 il problema ha 12 input e 4 output, come vedi nel file.
 scrivimi il codice caricando i dati dal path "data/CUP/ML-CUP25-TR.csv".
 usa early stopping e printa MEE sulle 4 variabili ricavate. (early stopping lo devi fare sul mee sul validation set)
+===========================================
+per monk1/2/3
+
+abbiamo seguito un approccio procedurale, notando che man mano che sceglievamo modelli più sofisticati, questi riuscissero a completare alla perfezione anche le predizioni sui modelli precedenti (ovvero il modello migliore per monk3, fa perfect accuracy su monk1/2).
+
+Per monk abbiamo usato reti neurali, facendo una grid search sui seguenti parametri:
+param_grid_monks1 = {
+
+    'hidden_layers':[[5], [10], [20], [10, 10], [5,5,5]],
+
+    'activation': ["ReLU", "tanh"],
+
+    'lr': [0.1, 0.2, 0.3, 0.4, 0.15, 0.07],
+
+    'momentum': [0.9, 0.5],
+
+    'weight_decay': [0.001,0.0001,0.00008, 0],
+
+    'epochs': [100, 150],
+
+    'batch_size': [32],
+
+    'es': [False]
+
+}
+param_grid_monks2 = {
+
+    'hidden_layers':[[5], [10], [20], [10, 10], [5,5,5]],
+
+    'activation': ["ReLU", "tanh"],
+
+    'lr': [0.1, 0.2, 0.3, 0.4, 0.15, 0.07],
+
+    'momentum': [0.9, 0.5],
+
+    'weight_decay': [0.001,0.0001,0.00008, 0],
+
+    'epochs': [100, 150, 300],
+
+    'batch_size': [32],
+
+    'es': [False]
+
+}
+param_grid_monks3 = {
+
+    'hidden_layers': [[5], [10], [20], [10, 10], [5,5,5]],
+
+    'activation': ["sigmoid", "ReLU", "tanh"],
+
+    'lr': [0.1, 0.05, 0.02, 0.01],
+
+    'momentum': [ 0.9,0.5,0.2],
+
+    'weight_decay': [0.0001, 0.001, 0.01],
+
+    'epochs': [600],
+
+    'batch_size': [32],
+
+    'es': [True]
+
+}
+
+
+i risultati dimmi te come dovre mostrarli. se non ricordo male diceva anche di confrontare monk3 con e senza regolarizzazione.
+
+
+
+per quanto riguarda la CUP, è il datast su cui è stato impiegata la maggior parte del tempo.
+
+Dopo aver provato inizialmente ad applicare i modelli in modo naive (NN input -> output, NN input -> singolo output, chaining sugli output, NN sugli errori ecc) e in modo fallimentare, abbiamo iniziato a studiare i dati.
+
+Ci siamo subito resi conto di relazioni importanti, e dopo un po di sbattimento di testa, siamo riusciti a determinare le seguenti relazioni:
+
+y1 = 0.5463(y3-y4) * cos(1.1395 (y3-y4))
+
+y2 = 0.5463(y3-y4) * sin(1.1395 (y3-y4))
+
+y3+y4 = -(y3-y4) cos(2 (y3-y4))
+
+inoltre abbiamo anche notato che c'era una grande correlazione lineare tra z=y3-y4 e gli input. Tuttavia provando un semplice LinReg z poteva essere predetta con un mae di 1, ancora troppo alto per poterr predirre ricalcolare gli altri output con precisione.
+
+A questo punto abbiamo iniziato a provare modelli per la predizione di z. Nessuno portava grandi risultati, fino a che non abbiamo provato knn con k=2 e le prime poche pc della pca sugli input standardizzati. Qua abbiamo visto i primi errori più bassi (MEE 20). Provando poi la knn invece che facendo predirre z, facendo predirre tutti e 4 i target, la MEE è scesa a 16.
+
+Allora abbiamo capito che esistevano delle relazioni che localmente erano lineari (o almeno approssimativemente). Infatti facendo adesso plot zoommati, ci siamo resi conto immediatamente della presenza di oscillazioni periodiche in pc1 e pc2 in funzione di z. È in questo momento che ci è venuta l'idea di applicare modelli inversi. Predirre gli xi con z e poi fare una ricerca inversa di z con quei modelli.
+
+Dopo un po di tentativi con vari modelli, abbiamo ottenuto i primi segni di speranza dal Random Forest: MEE di 12. Abbiamo fatto una RF che prendeva z, e prediceva le prime 6 pca (abbiamo notato che sceglierne 6 minimizzava MEE sul VL).
+
+Ma non eravamo ancora soddisfatti: Usare RF funzionava ma solo su zone di dati ben rappresentate. Ma noi avevamo capito la geometria quindi sapevamo che potevamo fare di meglio.
+
+La prima idea era quella di usare solo pc2 = f(z), dopo aver imparato f con modelli quali SIREN o fourier, per raffinare gli z trovati in precedenza con una maggiore precisione, tuttavia non stava funzionando molto bene.
+
+Tutto è cambiato dopo aver fatto l'analisi di fourier dei residui degli input approssimati linearmente con z. Abbiamo notato che sebbene alcuni input fossero evidentemente rumorosi, altri non lo erano affatto. E abbiamo riscontrato la presenza di una frequenza fondamentale, di cui comparivano le armoniche. Questa era w=0.57.
+
+Il modello successivo allora è quello che ha fatto crollare gli errori sotto 10.
+
+Abbiamo usato 6 armoniche di questa frequenza fondamentale, e z lineare, come base per una LBE di ogni input in funzione di z.
+
+Abbiamo calcolato dei pesi wi per ogni xi in base a quanto queste approssimazioni fossero corrette (1/MSE_i) e poi per predirre z, facevamo una grid_search su tutti i valori di z in [-70,50] per trovare quello che minimizzava l'errore pesato secondo le LBE di prima. Dal punto facevamo poi un refinement con modelli simil-newton per trovare minimi nell'intorno del punto della griglia scelto.
+
+Questo ha portato l'errore a 8.5 +- 1 con 5-fold CV.
+(ci saranno altre cosine da aggiungere perchè stiamo continuando a lavorarci ma intanto fai una presentazione su questo, ti allego un po di foto che credo siano utili)
