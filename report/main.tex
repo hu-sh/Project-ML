@@ -22,7 +22,7 @@
 \setbeamertemplate{caption}[numbered]
 % --- INFORMAZIONI TITOLO [cite: 1, 5, 6, 7] ---
 \title[ML 2025 Project]{ML 2025 Project}
-\author[TODO]{
+\author[STFfanclub]{
 	Authors: Davide Petillo, Valerio Stancanelli \\
 	\medskip
 	\small{STFfanclub} \\
@@ -427,5 +427,134 @@
 
 		$z_{forest\_refined}$ has a relatively high MEE, and when it is far from $z_{refined}$ it is most likely wrong. However, we can still improve the final MEE by giving it a low weight and using it only when the two values of $z$ are close to each other.
 	\end{frame}
+	
+	% --- INIZIO FRAME APPENDICE ---
+	
+% --- INIZIO FRAME APPENDIX A (NN BRUTE FORCE) ---
+
+\begin{frame}{Appendix B: Neural Network Limits}
+	\framesubtitle{Exhaustive Grid Search confirms MEE plateau at $\approx$ 21.4}
+	
+	\begin{columns}[T]
+		
+		% Colonna 1: Heatmap (La prova dell'esaustività)
+		\begin{column}{0.32\textwidth}
+			\centering
+			% Assicurati di avere nn_heatmap_exhaustive.png dallo script di grid search
+			% Se non ce l'hai, usa nn_best_learning_curve.png
+			\includegraphics[width=0.9\linewidth]{nn_heatmap_exhaustive.png}
+			\footnotesize{\textbf{Architecture Search}\\
+				Tested 60+ configurations (Depth, Width, Act., LR, momentum, dropout). No architecture breaks the MEE 20 barrier.}
+		\end{column}
+		
+		% Colonna 2: True vs Pred
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=0.9\linewidth]{nn_best_pred_vs_true.png}
+			\footnotesize{\textbf{Linear Bias}\\
+				Best Model ([100,100,100], ReLU, lr=1e-4, \(\alpha\)=0.1) still fails to track the high-frequency geometric manifold.}
+		\end{column}
+		
+		% Colonna 3: Residui
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=0.9\linewidth]{nn_best_learning_curve.png}
+			\footnotesize{\textbf{Learning Curve}}
+		\end{column}
+		
+	\end{columns}
+	
+	\vspace{0.5cm}
+	
+	\begin{alertblock}{Deep Learning Conclusion}
+		Even with deep architectures and aggressive tuning, MLPs suffer from \textbf{Spectral Bias} on this dataset. They learn the trend but cannot reconstruct the specific geometric curve from only 500 samples.
+	\end{alertblock}
+	
+\end{frame}
+
+% --- INIZIO FRAME APPENDIX B (Z VARIABLE UPDATED) ---
+
+\begin{frame}{Appendix C: The "Z-Variable" Bottleneck}	
+	\begin{columns}[T]
+		
+		% Colonna 1: Learning Curve
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{nn_z_learning_curve.png}
+			\footnotesize{\textbf{A. Optimization Limit}\\
+				Grid Search (60 configs) confirms that NNs cannot reduce MAE below 1 on the latent variable $z$.} Best: [200,100], ReLU, \(\alpha=0.01\), lr=1e-5
+		\end{column}
+		
+		% Colonna 2: True vs Pred
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{nn_z_pred_vs_true.png}
+			\footnotesize{\textbf{B. Approximation Error}\\
+				The model approximates the $z$-manifold roughly but fails to capture the exact curvature.}
+		\end{column}
+		
+		% Colonna 3: Residuals
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{nn_z_residuals.png}
+			\footnotesize{\textbf{C. Structured Residuals}\\
+				Deterministic patterns in residuals prove that geometric information is missing from the model.}
+		\end{column}
+		
+	\end{columns}
+	
+	\vspace{0.5cm}
+	
+	\begin{alertblock}{Geometric Insight}
+		The variable $z$ encodes high-frequency variations. Standard MLPs act as \textbf{Low-Pass Filters}, smoothing out exactly the information needed to reconstruction the full target vector $y$.
+	\end{alertblock}
+	
+\end{frame}
+
+% --- FINE FRAME APPENDIX B ---
+
+\begin{frame}{Appendix D: Exhaustive SVR Analysis}
+	\framesubtitle{Grid search confirms structural limits (Best MEE $\approx$ 17.65)}
+	
+	\begin{columns}[T]
+		
+		% Colonna 1: Heatmap (La prova che avete cercato ovunque)
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{svr_heatmap_exhaustive.jpg}
+			\footnotesize{\textbf{A. The "Error Wall"}\\
+				Grid search across 6 orders of magnitude ($C \in [1, 10^5]$) finds no solution under MEE 17.}
+		\end{column}
+		
+		
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{svr_best_pred_vs_true.png}
+			\footnotesize{\textbf{B. Kernel Smoothing}\\
+				Even with optimal parameters (\(C=10, \gamma=1, \varepsilon=0.1\)), the RBF kernel smooths out high-frequency geometric details.}
+		\end{column}
+		
+		% Colonna 3: Residuals (La prova dell'errore non casuale)
+		\begin{column}{0.32\textwidth}
+			\centering
+			\includegraphics[width=\linewidth]{svr_best_residuals.png}
+			\footnotesize{\textbf{C. Residuals}}
+		\end{column}
+		
+	\end{columns}
+	
+	\vspace{0.5cm}
+	
+
+	
+\end{frame}
+
+\begin{frame}{Appendix E: Conclusion on "standard" approaches}
+		\begin{alertblock}{Final Verdict on Standard Methods}
+		Neither Deep Learning (MEE $\approx$ 21) nor Kernel Machines (MEE $\approx$ 17.6) can solve the CUP. The problem requires explicit \textbf{Geometric Feature Engineering} (LBE), which achieves MEE $\mathbf{7.8}$.
+	\end{alertblock}
+\end{frame}
+
+
 	
 	\end{document}
