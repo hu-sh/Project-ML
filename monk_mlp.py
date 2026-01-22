@@ -17,7 +17,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # --- 1. SETUP DATI ---
 k_folds = 5
 
-j=2
+j=1
 
 train_path = 'data/MONK/monks-'+str(j)+'.train' 
 X_raw_train, y_train = load_monk_data(train_path)
@@ -49,21 +49,17 @@ param_grid_monks1 = {
     'lr': [0.3],#[0.1, 0.2, 0.3, 0.15, 0.07], 
     'momentum': [0.95], #[0.95, 0.9, 0.5, 0.2, 0.1], 
     'weight_decay': [0.0001],#[0.001,0.0001,0.00008, 0], 
-    'epochs': [100], #[100, 150,300,500],
+    'epochs': [300], #[100, 150,300,500],
     'batch_size': [32],
     'es': [False]
 }
-"""
-{'hidden_layers': [5], 'activation': 'ReLU', 'lr': 0.1, 'momentum': 0.95, 'weight_decay': 8e-05, 'epochs': 300, 'batch_size': 32, 'es': False}
-{'hidden_layers': [5], 'activation': 'ReLU', 'lr': 0.3, 'momentum': 0.95, 'weight_decay': 8e-05, 'epochs': 300, 'batch_size': 32, 'es': False}
-"""
 param_grid_monks2 = {
-    'hidden_layers': [[5]],#[[5], [10], [20], [10, 10], [5,5,5]], 
+    'hidden_layers': [[20]],#[[5], [10], [20], [10, 10], [5,5,5]], 
     'activation': ["ReLU"],#["ReLU", "tanh"], 
-    'lr': [0.3],#[0.2, 0.3, 0.1, 0.05, 0.01], 
-    'momentum': [0.5],#[0.95, 0.9, 0.5, 0.2, 0.1],
-    'weight_decay': [0.0001],#[0.001,0.0001,0.00008,0], 
-    'epochs': [300],#[150,100, 300, 500],
+    'lr': [0.2],#[0.2, 0.3, 0.1, 0.05, 0.01], 
+    'momentum': [0.95],#[0.95, 0.9, 0.5, 0.2, 0.1],
+    'weight_decay': [0.00008],#[0.001,0.0001,0.00008,0], 
+    'epochs': [150],#[150,100, 300, 500],
     'batch_size': [32],
     'es': [False]
 }
@@ -108,7 +104,7 @@ print("-------------------------------------------")
 X = torch.FloatTensor(X_train_enc)
 y = torch.FloatTensor(y_train).view(-1, 1)
 best_config['es'] = False
-best_config['epochs'] = int(best_avg_stop) - 30 # you could have done early stopping with a 90/10 split
+best_config['epochs'] = int(best_avg_stop) # you could have done early stopping with a 90/10 split
 model, history, _ = train_model(best_config, input_dim, X, y, X_test_t, y_test_t, task_type='classification')
 model.eval()
 with torch.no_grad():

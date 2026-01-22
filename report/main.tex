@@ -96,11 +96,11 @@
 					\toprule
 					\textbf{Task} & \textbf{Best Conf. ($\text{Arch}, \eta, \alpha, \lambda, \text{act}, \text{\#ep}$)} & \textbf{MSE (TR / TS)} & \textbf{Acc (TR / TS) \%} \\
 					\midrule
-					\textbf{MONK 1} & $[20], 0.3, 0.95, 1\text{e-}4, \text{tanh}, 300$ & $0.0013 / 0.0002$ & $\mathbf{100\%} / \mathbf{100\%}$ \\
+					\textbf{MONK 1} & $[20], 0.3, 0.95, 1\text{e-}4, \text{ReLU}, 300$ & $0.0013 / 0.0002$ & $\mathbf{100\%} / \mathbf{100\%}$ \\
 					\midrule
-					\textbf{MONK 2} & $[10], 0.05, 0.9, 8\text{e-}5, \text{tanh}, 300$ & $2.5\text{e-}3 / 4.7\text{e-}3$ & $\mathbf{100\%} / \mathbf{100\%}$ \\
+					\textbf{MONK 2} & $[20], 0.2, 0.95, 8\text{e-}5, \text{ReLU}, 150$ & $0.0003 / 0.0004$ & $\mathbf{100\%} / \mathbf{100\%}$ \\
 					\midrule
-					\textbf{MONK 3 (Reg)} & $[10], 0.05, 0.9, 1\text{e-}4, ReLU, 600$ & $ 0.0592 / 0.04945$ & $93.4\% / \mathbf{97.2\%}$ \\
+					\textbf{MONK 3 (Reg)} & $[10], 0.05, 0.9, 1\text{e-}4, \text{ReLU}, 600$ & $ 0.0470/ 0.0460$ & $94.3\% / \mathbf{95.8\%}$ \\
 					\midrule
 					MONK 3 (No-Reg) & $[5,5,5], 0.01, 0.9, 0, \text{tanh}$ & $0.0517 / 0.0501$ & $95.1\% / 95.6\%$ \\
 					\bottomrule
@@ -108,8 +108,6 @@
 			}
 		\end{table}
 		\vspace{0.2cm}
-		\footnotesize
-		\textbf{Key Observation (Monk 3):} The regularized model (ReLU, $\lambda=10^{-4}$) generalizes better on the clean Test Set ($97.2\%$) despite lower Training Accuracy ($93.4\%$), effectively filtering out the noise in the training data.
 	\end{frame}
 	
 	\begin{frame}{3.2 MONK 1 Results: Learning Curves}
@@ -164,7 +162,7 @@
 	\end{frame}
 	
 	% --- SLIDE: Monk 3 Plots (L'effetto della regolarizzazione) ---
-	\begin{frame}{3.4 MONK 3 Results: Regularization Effect}
+	\begin{frame}{3.4 MONK 3 Results}
 		\begin{columns}
 			\column{0.5\textwidth}
 			\centering
@@ -283,7 +281,7 @@
 	\end{columns}
 	\end{frame}
 	% --- SLIDE 10: CUP - Final Model Architecture ---
-	\begin{frame}{4.4 CUP: Final Model (LBE Inverse Solver)}
+	\begin{frame}{4.4 CUP: LBE Inverse Solver}
 		We model each input $x_i$ as a function of $z$ using \textbf{Linear Basis Expansion (LBE)}:
 		$$ \hat{x}_i(z) = c_{i,0} z + \sum_{k=1}^{K} \left( a_{i,k} \sin(k \omega z) + b_{i,k} \cos(k \omega z) \right) $$
 		
