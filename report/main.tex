@@ -35,7 +35,7 @@
 	\textbf{Università di Pisa} \\
 	\textit{Type of project: B}
 }
-\date{Date 23/01/2026}
+\date{Date 22/01/2026}
 
 \begin{document}
 	
@@ -68,7 +68,7 @@
 	\end{frame}
 	
 	% --- SLIDE 3: Monk Methodology (Aggiornata) ---
-	\begin{frame}{2. MONK: Method \& Validation}
+	\begin{frame}{MONK: Method \& Validation}
 		\textbf{Libraries used:} PyTorch, sklearn
 		\vspace{0.3cm}
 		
@@ -93,7 +93,7 @@
 	\end{frame}
 	
 	% --- SLIDE 4: Monk Results Table (Tutti i task) ---
-	\begin{frame}{3.1 MONK Results: Summary Table}
+	\begin{frame}{MONK Results: Summary Table}
 		\begin{table}[]
 			\caption{CUP performance summary.}
 			\centering
@@ -118,55 +118,35 @@
 	\end{frame}
 	
 	% --- SLIDE 5: Monk learning curves--
-	\begin{frame}{3.2 MONK 1 Results: Learning Curves}
+	\begin{frame}{MONK 1 \& 2 Results: Learning Curves}
 		\begin{columns}
-			\column{0.5\textwidth}
+			\column{0.72\textwidth}
 			\centering
-			% Inserisci qui il tuo file mse_monks2.png
-			\begin{figure}
-				\centering
-				\includegraphics[width=\textwidth, height=5cm, keepaspectratio]{mse_monks1.png}
-				\caption{MONK 1 - MSE (TR vs TS)}
-				\label{fig:mse-monks1}
-			\end{figure}
+			\begin{tabular}{cc}
+				\includegraphics[width=0.48\textwidth, height=4.2cm, keepaspectratio]{mse_monks1.png} &
+				\includegraphics[width=0.48\textwidth, height=4.2cm, keepaspectratio]{acc_monks1.png} \\
+				\includegraphics[width=0.48\textwidth, height=4.2cm, keepaspectratio]{mse_monks2.png} &
+				\includegraphics[width=0.48\textwidth, height=4.2cm, keepaspectratio]{acc_monks2.png}
+			\end{tabular}
 			
-			\column{0.5\textwidth}
+			\column{0.28\textwidth}
 			\centering
-			\begin{figure}
-				\centering
-				\includegraphics[width=\textwidth, height=5cm, keepaspectratio]{acc_monks1.png}
-				\caption{MONK 1 - Accuracy (TR vs TS)}
-				\label{fig:acc-monks1}
-			\end{figure}
+			\textbf{MONK 1 \& 2 overview}\\
+			\vspace{0.3cm}
+			\small
+			Left column shows MSE (top) and accuracy (bottom) for each dataset.
+			\medskip
 			
+			\textbf{Top pair:} MONK 1 \\
+			\textbf{Bottom pair:} MONK 2 \\
+			\medskip
+			
+			Training and test curves overlap, indicating stable convergence and no overfitting.
 		\end{columns}
-	\end{frame}
-	
-	% --- SLIDE 6: Monk learning curves--
-	\begin{frame}{3.3 MONK 2 Results: Learning Curves}
-		\begin{columns}
-			\column{0.5\textwidth}
-			\centering
-			\begin{figure}
-				\centering
-			\includegraphics[width=\textwidth, height=5cm, keepaspectratio]{mse_monks2.png}
-			\caption{MONK 2 - MSE (TR vs TS)}
-			\label{fig:mse-monks2}
-			\end{figure}
-			\column{0.5\textwidth}
-			\centering
-			\begin{figure} 
-				\centering
-			\includegraphics[width=\textwidth, height=5cm, keepaspectratio]{acc_monks2.png}
-			\caption{MONK 2 - Accuracy (TR vs TS)}
-			\label{fig:acc-monks2}
-		\end{figure}
-		\end{columns}
-
 	\end{frame}
 	
 	% --- SLIDE 7: Monk learning curves---
-	\begin{frame}{3.4 MONK 3 Results: Learning Curves}
+	\begin{frame}{MONK 3 Results: Learning Curves}
 		\begin{columns}
 			\column{0.5\textwidth}
 			\centering
@@ -187,11 +167,10 @@
 		\end{columns}
 		\vspace{0.2cm}
 		\centering
-		\small \textit{Note: TS Accuracy (Blue) surpasses TR Accuracy (Red), indicating successful noise handling.}
 	\end{frame}
 	
 	% --- SLIDE 8: CUP Method - Overview ---
-	\begin{frame}{4. CUP: From Naive to Geometric}
+	\begin{frame}{CUP: From Naive to Geometric}
 		\textbf{Initial Approaches (Failed):}
 		\begin{itemize}
 			\item Standard FFNN (Input $\to$ Output), Chaining, Error-correction NNs.
@@ -213,7 +192,7 @@
 	\end{frame}
 	
 	% --- SLIDE 9: CUP - The Geometry ---
-	\begin{frame}{4.1 CUP: new discoveries}
+	\begin{frame}{CUP: new discoveries}
 		We also found a strong linear correlation between \(z\) and inputs, especially if we took the first principal component. From this point on, we focused on predicting \(z\).
 		\begin{itemize}
 			\item Linear Regression on $z$ using inputs failed (MAE $\approx 1$).
@@ -229,7 +208,7 @@
 	\end{frame}
 	
 	% --- SLIDE 10: CUP - Intermediate Models ---
-	\begin{frame}{4.2 CUP: Other geometric discoveries}
+	\begin{frame}{CUP: Other geometric discoveries}
 	That idea lead us to zoom on the plot of z against other variables, and what we found was very good.
 		\begin{figure}
 		\centering
@@ -244,7 +223,7 @@
 	\end{frame}
 	
 	% --- SLIDE 11: CUP - Spectral Analysis ---
-	\begin{frame}{4.3 CUP: The inverse idea}
+	\begin{frame}{CUP: The inverse idea}
 		Noticing that there seemed to be a relationship of the kind pc2\(=f(z)\), made us think about reversing the process of prediction.
 		We train a model to predict a certain representation of the input and then we try to invert the process to get the correct \(z\).
 		\vspace{0.5cm}
@@ -260,7 +239,7 @@
 	\end{frame}
 	
 	% --- SLIDE 12: CUP - Spectral Analysis --
-	\begin{frame}{4.4 CUP: The residual analysis}
+	\begin{frame}{CUP: The residual analysis}
 		After some time spent trying to improve the models above, we noticed that other principal components seemed to be oscillating, so our intuition was: "Maybe every input has an oscillating component apart from the linear one...".
 		
 		\vspace{0.1cm}
@@ -288,7 +267,7 @@
 	\end{frame}
 	
 	% --- SLIDE 13: CUP - Final Model Architecture ---
-	\begin{frame}{4.4 CUP: LBE Inverse Solver}
+	\begin{frame}{CUP: LBE Inverse Solver}
 		We model each input $x_i$ as a function of $z$ using \textbf{Linear Basis Expansion (LBE)}:
 		$$ \hat{x}_i(z) = c_{i,0} z + \sum_{k=1}^{K} \left( a_{i,k} \sin(k \omega z) + b_{i,k} \cos(k \omega z) \right) $$
 		
@@ -301,7 +280,7 @@
 	\end{frame}
 	
 	% --- SLIDE 14: CUP - Inference + Refinement ---
-	\begin{frame}{4.5 CUP: Inference and Refinement}
+	\begin{frame}{CUP: Inference and Refinement}
 		To predict $z_{pred}$ given a new input vector $\mathbf{x}_{new}$:
 		
 		\begin{enumerate}
@@ -320,7 +299,7 @@
 	\end{frame}
 
 	% --- SLIDE 16: CUP - Ensemble z_ens ---
-	\begin{frame}{4.6 CUP: Ensemble $z_{ens}$}
+	\begin{frame}{CUP: Ensemble $z_{ens}$}
 		We combine two estimates when they agree:
 		\begin{itemize}
 			\item if $|z_{refined} - z_{forest\_refined}| < \alpha$, use their weighted average
@@ -339,7 +318,7 @@
 	\end{frame}
 	
 	% --- SLIDE 17: CUP - Validation Schema ---
-	\begin{frame}{5.1 CUP: Validation Schema}
+	\begin{frame}{CUP: Validation Schema}
 		\textbf{Data Splitting:}
 		\begin{itemize}
 			\item \textbf{Internal Test Set:} 10\% of the full training set is held out.
@@ -354,7 +333,7 @@
 	\end{frame}
 	
 	% --- SLIDE 18: CUP - Model Selection ---
-	\begin{frame}{5.2 CUP: Model Selection}
+	\begin{frame}{CUP: Model Selection}
 		\textbf{Hyperparameters Tuned (Grid Search):}
 		\begin{itemize}
 			\item \textbf{Refinement $\lambda$:} regularization for $z$ refinement via $pc2$.
@@ -378,7 +357,7 @@
 	\end{frame}
 	
 	% --- SLIDE 19: CUP - Grid Search Summary ---
-	\begin{frame}{5.2.1 CUP: Grid Search Summary}
+	\begin{frame}{CUP: Grid Search Summary}
 		\textbf{Total combinations:} 300
 		\begin{table}[]
 			\centering
@@ -398,7 +377,7 @@
 	\end{frame}
 	
 	% --- SLIDE 19: CUP - Final Results Table ---
-	\begin{frame}{5.3 CUP: Final Results}
+	\begin{frame}{CUP: Final Results}
 		\textbf{Model:} Geometric Inverse Solver (LBE + Newton Refinement)
 		
 		\begin{table}[]
@@ -422,7 +401,7 @@
 	\end{frame}
 	
 	% --- SLIDE 18: Conclusions ---
-	\begin{frame}{6. Conclusions}
+	\begin{frame}{Conclusions}
 		\textbf{Summary:}
 		\begin{itemize}
 			\item \textbf{MONK:} Confirmed that procedural complexity handling implies success on simpler tasks.

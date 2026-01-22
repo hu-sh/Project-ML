@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2025.12.14)  22 JAN 2026 19:41
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2025.12.14)  22 JAN 2026 19:58
 entering extended mode
  \write18 enabled.
  file:line:error style messages enabled.
@@ -819,101 +819,98 @@ LaTeX Font Warning: Font shape `T1/cmss/b/n' undefined
 <./img/mse_monks1.png, id=170, 623.32875pt x 438.8897pt>
 File: ./img/mse_monks1.png Graphic file (type png)
 <use ./img/mse_monks1.png>
-Package pdftex.def Info: ./img/mse_monks1.png  used on input line 143.
-(pdftex.def)             Requested size: 202.04681pt x 142.26244pt.
+Package pdftex.def Info: ./img/mse_monks1.png  used on input line 146.
+(pdftex.def)             Requested size: 169.71817pt x 119.49963pt.
 <./img/acc_monks1.png, id=171, 621.07031pt x 442.65375pt>
 File: ./img/acc_monks1.png Graphic file (type png)
 <use ./img/acc_monks1.png>
-Package pdftex.def Info: ./img/acc_monks1.png  used on input line 143.
-(pdftex.def)             Requested size: 199.60893pt x 142.26672pt.
- [5
-
- <./img/mse_monks1.png (PNG copy)> <./img/acc_monks1.png (PNG copy)>]
-<./img/mse_monks2.png, id=201, 625.58719pt x 439.6425pt>
+Package pdftex.def Info: ./img/acc_monks1.png  used on input line 146.
+(pdftex.def)             Requested size: 167.66278pt x 119.49783pt.
+<./img/mse_monks2.png, id=172, 625.58719pt x 439.6425pt>
 File: ./img/mse_monks2.png Graphic file (type png)
 <use ./img/mse_monks2.png>
-Package pdftex.def Info: ./img/mse_monks2.png  used on input line 166.
-(pdftex.def)             Requested size: 202.42567pt x 142.25822pt.
-<./img/acc_monks2.png, id=202, 616.55344pt x 436.63126pt>
+Package pdftex.def Info: ./img/mse_monks2.png  used on input line 146.
+(pdftex.def)             Requested size: 170.03719pt x 119.49664pt.
+<./img/acc_monks2.png, id=173, 616.55344pt x 436.63126pt>
 File: ./img/acc_monks2.png Graphic file (type png)
 <use ./img/acc_monks2.png>
-Package pdftex.def Info: ./img/acc_monks2.png  used on input line 166.
-(pdftex.def)             Requested size: 200.88551pt x 142.26324pt.
- [6
+Package pdftex.def Info: ./img/acc_monks2.png  used on input line 146.
+(pdftex.def)             Requested size: 168.73894pt x 119.49767pt.
+ [5
 
- <./img/mse_monks2.png (PNG copy)> <./img/acc_monks2.png (PNG copy)>]
-<./img/mse_monks3.png, id=232, 623.32875pt x 438.8897pt>
+ <./img/mse_monks1.png (PNG copy)> <./img/acc_monks1.png (PNG copy)> <./img/mse_monks2.png (PNG copy)> <./img/acc_monks2.png (PNG copy)>]
+<./img/mse_monks3.png, id=202, 623.32875pt x 438.8897pt>
 File: ./img/mse_monks3.png Graphic file (type png)
 <use ./img/mse_monks3.png>
-Package pdftex.def Info: ./img/mse_monks3.png  used on input line 191.
+Package pdftex.def Info: ./img/mse_monks3.png  used on input line 170.
 (pdftex.def)             Requested size: 202.04681pt x 142.26244pt.
-<./img/acc_monks3.png, id=233, 616.55344pt x 437.38406pt>
+<./img/acc_monks3.png, id=203, 616.55344pt x 437.38406pt>
 File: ./img/acc_monks3.png Graphic file (type png)
 <use ./img/acc_monks3.png>
-Package pdftex.def Info: ./img/acc_monks3.png  used on input line 191.
+Package pdftex.def Info: ./img/acc_monks3.png  used on input line 170.
 (pdftex.def)             Requested size: 200.53741pt x 142.26158pt.
- [7
+ [6
 
- <./img/mse_monks3.png (PNG copy)> <./img/acc_monks3.png (PNG copy)>] [8
+ <./img/mse_monks3.png (PNG copy)> <./img/acc_monks3.png (PNG copy)>] [7
 
-] [9
+] [8
 
 ]
-<./img/z-pc1.png, id=322, 499.11469pt x 484.81125pt>
+<./img/z-pc1.png, id=291, 499.11469pt x 484.81125pt>
 File: ./img/z-pc1.png Graphic file (type png)
 <use ./img/z-pc1.png>
-Package pdftex.def Info: ./img/z-pc1.png  used on input line 244.
+Package pdftex.def Info: ./img/z-pc1.png  used on input line 223.
 (pdftex.def)             Requested size: 146.46072pt x 142.26352pt.
-<./img/z-pc2.png, id=323, 371.13657pt x 361.35pt>
+<./img/z-pc2.png, id=292, 371.13657pt x 361.35pt>
 File: ./img/z-pc2.png Graphic file (type png)
 <use ./img/z-pc2.png>
-Package pdftex.def Info: ./img/z-pc2.png  used on input line 244.
+Package pdftex.def Info: ./img/z-pc2.png  used on input line 223.
 (pdftex.def)             Requested size: 146.1188pt x 142.26578pt.
- [10
+ [9
 
- <./img/z-pc1.png (PNG copy)> <./img/z-pc2.png (PNG copy)>] [11
+ <./img/z-pc1.png (PNG copy)> <./img/z-pc2.png (PNG copy)>] [10
 
 ]
-<./img/residuals_fourier_analysis.jpg, id=380, 963.6pt x 770.88pt>
+<./img/residuals_fourier_analysis.jpg, id=349, 963.6pt x 770.88pt>
 File: ./img/residuals_fourier_analysis.jpg Graphic file (type jpg)
 <use ./img/residuals_fourier_analysis.jpg>
-Package pdftex.def Info: ./img/residuals_fourier_analysis.jpg  used on input line 288.
+Package pdftex.def Info: ./img/residuals_fourier_analysis.jpg  used on input line 267.
 (pdftex.def)             Requested size: 142.25475pt x 113.80379pt.
- [12
+ [11
 
- <./img/residuals_fourier_analysis.jpg>] [13
+ <./img/residuals_fourier_analysis.jpg>] [12
 
-] [14
+] [13
 
 ]
-<./img/abs_z_error_z_refined_vs_z_forest_refined.png, id=469, 578.16pt x 433.62pt>
+<./img/abs_z_error_z_refined_vs_z_forest_refined.png, id=438, 578.16pt x 433.62pt>
 File: ./img/abs_z_error_z_refined_vs_z_forest_refined.png Graphic file (type png)
 <use ./img/abs_z_error_z_refined_vs_z_forest_refined.png>
-Package pdftex.def Info: ./img/abs_z_error_z_refined_vs_z_forest_refined.png  used on input line 339.
+Package pdftex.def Info: ./img/abs_z_error_z_refined_vs_z_forest_refined.png  used on input line 318.
 (pdftex.def)             Requested size: 151.74721pt x 113.81041pt.
- [15
+ [14
 
- <./img/abs_z_error_z_refined_vs_z_forest_refined.png>] [16
+ <./img/abs_z_error_z_refined_vs_z_forest_refined.png>] [15
+
+] [16
 
 ] [17
 
 ] [18
 
-] [19
-
 ]
-LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 439.
+LaTeX Font Info:    Trying to load font information for T1+cmtt on input line 418.
  (/usr/share/texlive/texmf-dist/tex/latex/base/t1cmtt.fd
 File: t1cmtt.fd 2023/04/13 v2.5m Standard LaTeX font definitions
-) [20
+) [19
 
 ]
-<./img/mee_alpha_gamma.png, id=640, 722.7pt x 289.08pt>
+<./img/mee_alpha_gamma.png, id=608, 722.7pt x 289.08pt>
 File: ./img/mee_alpha_gamma.png Graphic file (type png)
 <use ./img/mee_alpha_gamma.png>
-Package pdftex.def Info: ./img/mee_alpha_gamma.png  used on input line 450.
+Package pdftex.def Info: ./img/mee_alpha_gamma.png  used on input line 429.
 (pdftex.def)             Requested size: 284.52051pt x 113.8082pt.
- [21
+ [20
 
  <./img/mee_alpha_gamma.png>]
 \tf@nav=\write6
@@ -938,18 +935,18 @@ Package rerunfilecheck Info: File `main.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 23445 strings out of 474222
- 451863 string characters out of 5748732
+ 23433 strings out of 474222
+ 451708 string characters out of 5748732
  1940975 words of memory out of 5000000
- 45123 multiletter control sequences out of 15000+600000
- 586075 words of font info for 106 fonts, out of 8000000 for 9000
+ 45117 multiletter control sequences out of 15000+600000
+ 586021 words of font info for 106 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  128i,15n,123p,477b,744s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi17.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsi0800.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsi1200.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsi1440.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss0600.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss0800.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1000.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1200.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1440.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1728.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss2074.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsx0800.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsx1440.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsx1728.pfb></usr/share/texmf/fonts/type1/public/cm-super/sftt1440.pfb>
-Output written on main.pdf (21 pages, 893980 bytes).
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi17.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsi0800.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsi1440.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss0600.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss0800.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1000.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1200.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1440.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss1728.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss2074.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsx0800.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsx1200.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsx1440.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfsx1728.pfb></usr/share/texmf/fonts/type1/public/cm-super/sftt1440.pfb>
+Output written on main.pdf (20 pages, 893867 bytes).
 PDF statistics:
- 781 PDF objects out of 1000 (max. 8388607)
- 647 compressed objects within 7 object streams
- 51 named destinations out of 1000 (max. 500000)
+ 749 PDF objects out of 1000 (max. 8388607)
+ 617 compressed objects within 7 object streams
+ 45 named destinations out of 1000 (max. 500000)
  188 words of extra memory for PDF output out of 10000 (max. 10000000)
 
