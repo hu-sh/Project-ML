@@ -14,13 +14,13 @@ from scipy.optimize import minimize
 FILE_PATH = "data/CUP/ML-CUP25-TR.csv"
 FIT_PATH = "fit.txt"
 W_THEORETICAL = (1 + 1 / np.sqrt(2)) / 3
-LAMBDA_SWEEP = [0.01, 0.02, 0.05, 0.08, 0.1, 0.12, 0.15, 0.2, 0.3, 0.5]
+LAMBDA_SWEEP = [1.0]
 GRID_STEPS = 201
 GRID_SIZE = 5000
 K_SSD = 100
 N_COMPONENTS = 6
-GAMMA = 0.15
-ALPHA_THRESHOLD = 1.0
+GAMMA = 0.1
+ALPHA_THRESHOLD = 1.5
 
 
 def calculate_mee(y_true, y_pred):
@@ -110,7 +110,7 @@ def main():
 
     T, const, terms = parse_fit(FIT_PATH)
 
-    random_state = 53
+    random_state = 54
     print(f"random_state: {random_state}")
     kf = KFold(n_splits=5, shuffle=True, random_state=random_state)
 
